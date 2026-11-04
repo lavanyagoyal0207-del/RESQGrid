@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchIncidentsData,
   generateSituationBrief,
+  postFieldReport,
 } from './api';
 
 afterEach(() => {
@@ -54,6 +55,38 @@ describe('authenticated API calls', () => {
       expect.objectContaining({
         method: 'POST',
         headers: { Authorization: `Basic ${btoa('operator-a:secret')}` },
+      }),
+    );
+  });
+});
+
+describe('citizen report retry identifiers', () => {
+  it('sends a stable body submission_id in addition to the optional header', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        ok: true,
+        report: { report_id: 'REP-1' },
+      })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const payload = {
+      original_text: 'Water is rising.',
+      place: 'Mandi',
+      type: 'Flood',
+      severity: 'High',
+      submission_id: 'citizen-action-0001',
+    };
+
+    const result = await postFieldReport(payload, '/api');
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/report',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'citizen-action-0001',
+        }),
+        body: JSON.stringify(payload),
       }),
     );
   });

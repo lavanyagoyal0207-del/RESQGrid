@@ -17,8 +17,12 @@ from intelligence import (
     detect_emerging_patterns,
     detect_language,
     extract_report_fields,
+    is_simulated_record,
     translate_text,
 )
+from app import generate_situation_brief
+import seed_dynamodb
+from seed_dynamodb import seed_places
 
 
 PLACE = {
@@ -138,6 +142,173 @@ class MultilingualIntelligenceTests(unittest.TestCase):
             for pattern in patterns["patterns"]
         ))
         self.assertIn("not validated", patterns["label"])
+
+    def test_patterns_are_anchored_to_server_time_and_ignore_stale_reports(self):
+        now = datetime(2026, 11, 5, 0, 0, tzinfo=timezone.utc)
+        recent_reports = [
+            {
+                "report_id": f"REP-CURRENT-{index}",
+                "place": "Mandi",
+                "severity": "High",
+                "original_text": "Bridge damaged.",
+                "created_at": (now - timedelta(minutes=index * 5)).isoformat(),
+                "verification_status": "Unverified",
+            }
+            for index in range(3)
+        ]
+        stale_reports = [
+            {
+                **report,
+                "report_id": f"REP-OLD-{index}",
+                "created_at": (now - timedelta(days=2, minutes=index)).isoformat(),
+            }
+            for index, report in enumerate(recent_reports)
+        ]
+
+        current = detect_emerging_patterns(
+            stale_reports + recent_reports,
+            [],
+            [PLACE],
+            now=now,
+        )
+        self.assertEqual(current["data_status"], "current")
+        self.assertEqual(current["evaluated_at"], now.isoformat())
+        self.assertTrue(all(
+            pattern["detected_at"] == now.isoformat()
+            for pattern in current["patterns"]
+        ))
+        frequency = next(
+            pattern for pattern in current["patterns"]
+            if pattern["type"] == "Report Frequency Increase"
+        )
+        self.assertEqual(
+            set(frequency["supporting_report_ids"]),
+            {report["report_id"] for report in recent_reports},
+        )
+
+        stale = detect_emerging_patterns(stale_reports, [], [PLACE], now=now)
+        self.assertEqual(stale["data_status"], "stale")
+        self.assertEqual(stale["stale_report_count"], 3)
+        self.assertEqual(stale["patterns"], [])
+        self.assertIn("Stale evidence", stale["label"])
+
+    def test_patterns_label_empty_recent_data_insufficient(self):
+        result = detect_emerging_patterns([], [], [PLACE])
+        self.assertEqual(result["data_status"], "insufficient")
+        self.assertEqual(result["patterns"], [])
+        self.assertIn("Insufficient recent evidence", result["label"])
+
+    def test_demo_records_are_filtered_from_intelligence_snapshot_and_brief(self):
+        demo_report = {
+            "PK": "REPORT#REP-9001",
+            "SK": "METADATA",
+            "report_id": "REP-9001",
+            "original_text": "SIMULATED SAMPLE",
+            "place": "Mandi",
+        }
+        demo_incident = {
+            "PK": "INCIDENT#INC-101",
+            "SK": "METADATA",
+            "incident_id": "INC-101",
+            "place": "Mandi",
+        }
+        self.assertTrue(is_simulated_record(demo_report))
+        self.assertTrue(is_simulated_record(demo_incident))
+        real_report = {
+            "PK": "REPORT#REP-REAL",
+            "SK": "METADATA",
+            "report_id": "REP-REAL",
+            "original_text": "Real caller report",
+            "place": "Mandi",
+            "verification_status": "Unverified",
+        }
+        with patch.object(
+            backend_app,
+            "get_all_items",
+            return_value=[demo_report, demo_incident, real_report, PLACE],
+        ):
+            _, incidents, reports, _ = backend_app.load_intelligence_snapshot()
+
+        self.assertEqual(incidents, [])
+        self.assertEqual([report["report_id"] for report in reports], ["REP-REAL"])
+        brief = generate_situation_brief(
+            [demo_incident],
+            [demo_report],
+        )
+        self.assertIn("0 individual reports", brief["text"])
+        self.assertIn("0 active incidents", brief["text"])
+        self.assertNotIn("SIMULATED SAMPLE", brief["text"])
+        patterns = detect_emerging_patterns(
+            [demo_report],
+            [demo_incident],
+            [PLACE],
+        )
+        self.assertEqual(patterns["patterns"], [])
+
+    def test_mock_seed_data_writes_only_fixed_locations(self):
+        writes = []
+        seed_places(
+            [
+                {"place": "Mandi", "lat": 31.7087, "lng": 76.932},
+            ],
+            save=writes.append,
+        )
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0]["PK"], "PLACE#Mandi")
+        self.assertFalse(any(
+            item["PK"].startswith(("REPORT#", "INCIDENT#", "BRIEF#"))
+            for item in writes
+        ))
+
+    def test_seed_entry_point_never_writes_simulated_reports_or_briefs(self):
+        writes = []
+        with patch.object(seed_dynamodb, "save_once", side_effect=writes.append):
+            seed_dynamodb.main()
+
+        self.assertTrue(writes)
+        self.assertTrue(all(item["PK"].startswith("PLACE#") for item in writes))
+
+    def test_seeded_demo_brief_is_not_returned_as_operational_brief(self):
+        backend_app.table.get_item.return_value = {
+            "Item": {
+                "PK": "BRIEF#CURRENT",
+                "SK": "METADATA",
+                "generated_at": "2026-11-03T22:50:00+05:30",
+                "text": "SIMULATED BRIEF",
+            }
+        }
+        self.assertIsNone(backend_app.get_brief_item())
+
+    def test_situation_brief_excludes_resolved_and_rejected_incidents(self):
+        incidents = [
+            {
+                "incident_id": "INC-ACTIVE",
+                "place": "Mandi",
+                "type": "Flood",
+                "severity": "High",
+                "status": "Unverified",
+            },
+            {
+                "incident_id": "INC-RESOLVED",
+                "place": "Kullu",
+                "type": "Landslide",
+                "severity": "Critical",
+                "status": "Confirmed",
+                "response_status": "Resolved",
+            },
+            {
+                "incident_id": "INC-REJECTED",
+                "place": "Shimla",
+                "type": "Flood",
+                "severity": "Critical",
+                "status": "Rejected",
+            },
+        ]
+        brief = generate_situation_brief(incidents, [])
+        self.assertIn("across 1 active incident", brief["text"])
+        self.assertIn("Affected locations: Mandi.", brief["text"])
+        self.assertNotIn("Kullu", brief["text"])
+        self.assertNotIn("Shimla", brief["text"])
 
 
 class PhaseFourApiTests(unittest.TestCase):
@@ -340,6 +511,50 @@ class PhaseFourApiTests(unittest.TestCase):
         self.assertEqual(invalid_window.status_code, 400)
         self.assertEqual(patterns.status_code, 200)
         self.assertIn("patterns", patterns.get_json())
+
+    def test_analytics_excludes_legacy_demo_reports_and_incidents(self):
+        items = [
+            {
+                "PK": "REPORT#REP-9001",
+                "SK": "METADATA",
+                "report_id": "REP-9001",
+                "place": "Mandi",
+                "verification_status": "Confirmed",
+            },
+            {
+                "PK": "INCIDENT#INC-101",
+                "SK": "METADATA",
+                "incident_id": "INC-101",
+                "place": "Mandi",
+                "severity": "Critical",
+                "type": "Flood",
+            },
+            {
+                "PK": "REPORT#REP-REAL",
+                "SK": "METADATA",
+                "report_id": "REP-REAL",
+                "place": "Mandi",
+                "source": "Citizen Field Report",
+                "verification_status": "Unverified",
+            },
+            {
+                "PK": "INCIDENT#INC-REAL",
+                "SK": "METADATA",
+                "incident_id": "INC-REAL",
+                "place": "Mandi",
+                "severity": "High",
+                "type": "Flood",
+            },
+        ]
+        with patch.object(backend_app, "get_all_items", return_value=items):
+            with self.operator():
+                response = self.client.get("/analytics")
+
+        self.assertEqual(response.status_code, 200)
+        analytics = response.get_json()["incident_analytics"]
+        self.assertEqual(analytics["total_reports"], 1)
+        self.assertEqual(analytics["total_incidents"], 1)
+        self.assertEqual(analytics["by_severity"], {"High": 1})
 
     def test_alert_requires_review_and_simulates_delivery_without_external_service(self):
         confirmed = {

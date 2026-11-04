@@ -48,15 +48,22 @@ Citizen intake endpoints intentionally remain unauthenticated. They use idempote
 
 ## Request examples
 
-Text intake:
+Text intake with a stable action ID. The body `submission_id` is the retry
+fallback for clients that cannot send the optional header:
 
 ```http
 POST /report
 Content-Type: application/json
 Idempotency-Key: citizen-submit-20261104-001
 
-{"original_text":"Water is rising near the bridge.","place":"Mandi","type":"Flood","severity":"High"}
+{"original_text":"Water is rising near the bridge.","place":"Mandi","type":"Flood","severity":"High","submission_id":"citizen-submit-20261104-001"}
 ```
+
+For retries, reuse the same `submission_id` (or `Idempotency-Key`) for one
+citizen action; create a new ID for every separate action, even if its text is
+identical. The first-party frontend sends both. If a legacy client sends neither,
+the API rejects the submission: a stable client request identity is required
+because the server cannot distinguish a retry from a separate identical report.
 
 Operator-only action:
 

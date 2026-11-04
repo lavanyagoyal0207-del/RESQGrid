@@ -136,14 +136,14 @@ Protected read endpoints require Basic authentication for a configured viewer or
 | `POST /alerts/{alert_id}/send` | Record simulated delivery (no external service) |
 | `PATCH /reports/{report_id}/analysis-corrections` | Correct extracted fields without changing report verification |
 
-`POST /report` and `POST /voice-report` accept an `Idempotency-Key` header. Resource records use the DynamoDB partition key `RESOURCE#{resource_id}` and sort key `METADATA`. Incident response status, assignments, and history are stored with each incident. Assignment and return updates use DynamoDB transactions so incident and resource records are updated together.
+`POST /report` and `POST /voice-report` accept an `Idempotency-Key` header and a stable `submission_id` body/form fallback. Reuse the same ID for retries and generate a new ID for each separate citizen action, even when the report text is identical. The first-party frontend sends both; a submission missing both identifiers is rejected. Resource records use the DynamoDB partition key `RESOURCE#{resource_id}` and sort key `METADATA`. Incident response status, assignments, and history are stored with each incident. Assignment and return updates use DynamoDB transactions so incident and resource records are updated together.
 
 Response status transitions are constrained to `Awaiting Assignment -> Assigned -> Team Dispatched -> Response in Progress -> Resolved`; an assigned incident may return to `Awaiting Assignment`. Each accepted update records the operator, timestamp, and optional note.
 
 ### Phase 4 API and data
 
 - `GET /intelligence/compare?window_minutes=60` returns location/time/text candidate comparisons, explicit contradiction evidence, and severity conflicts. It never deletes reports or confirms incidents.
-- `GET /intelligence/patterns` returns deterministic, historical count-based anomaly indicators with supporting report IDs. Results are decision support, not disaster predictions.
+- `GET /intelligence/patterns` returns deterministic count-based anomaly indicators using the current server time and no more than 24 hours of reports. Stale or insufficient evidence is labeled and produces no current pattern. Results are decision support, not disaster predictions.
 - `GET /analytics?from_date=YYYY-MM-DD&to_date=YYYY-MM-DD&place=...` aggregates stored reports, incidents, resources, response histories, transcription outcomes, and alert records. Omit filters for all stored data.
 - `GET /brief/history` lists archived versions. A new draft archives the prior approved brief atomically; generated briefs remain drafts until an authenticated operator approves them.
 - `GET /alerts` returns the stored alert history. Simulated send only changes database status; no SMS, broadcast, or external delivery service is contacted.
@@ -171,7 +171,7 @@ The extraction and contradiction logic is conservative, phrase-based decision su
 - Backend tests use mocked DynamoDB and S3 clients. They verify route validation, transaction construction, report grouping, risk calculations, resource/response updates, and audio retention on transcription failure; they do not prove live AWS writes or playback.
 - The browser smoke test uses intercepted API responses. Real English/Hindi/Punjabi recordings, live S3 retention, DynamoDB persistence, and real operator credentials still need deployment-environment verification.
 - `GET /incidents` currently paginates a DynamoDB table scan because the existing table has no query index for a consolidated snapshot. At scale, replace it with a query-oriented index or maintained dashboard projection before increasing refresh frequency.
-- `seed_dynamodb.py` reads sample dashboard data from `mockData.json`; do not run it against a live operational table. Seed only approved fixed-location records in a controlled environment.
+- `seed_dynamodb.py` reads the fixed-location definitions from `mockData.json` and writes only location reference records. Simulated reports, incidents, and briefs are never seeded into operational storage; legacy sample IDs are excluded from operational API snapshots.
 - OpenStreetMap tiles require network access and should be used in accordance with the tile usage policy. Incident details still load if map tiles are unavailable.
 
 ## Phase 5 security and operations

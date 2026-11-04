@@ -19,10 +19,11 @@ AWS transactions are used for workflows that need coordinated resource/incident 
 ## Consistency and operations
 
 - DynamoDB writes retain original report text and do not automatically set human verification to confirmed.
-- Idempotency keys are hashed into report IDs. Reusing the same key returns the existing report rather than uploading/creating a duplicate.
+- `Idempotency-Key` and the body/form `submission_id` are hashed into report IDs. Reuse the same ID for retries and issue a new one for each separate citizen action, including identical text. A request missing both is rejected because the server cannot safely distinguish a retry from a separate identical submission.
+- Operational writes are marked `data_classification=operational`. Simulated records and the legacy mock IDs are excluded from report snapshots, situation briefs, patterns, and analytics. `seed_dynamodb.py` now initializes fixed locations only; it does not persist mock reports, incidents, or briefs.
 - S3 object keys are not included in public report payloads. Audio bytes are fetched only through the authenticated API.
-- The backend currently uses paginated `Scan` calls and filters record prefixes in application code. It does not have a GSI for report-by-incident, incident-by-location, or time-range queries.
-- The existing model can grow without a migration, but scan cost/latency grows with the table. Before production scale, review a query-first schema or GSI and update the dashboard to consume paginated results.
+- Dashboard, intelligence, analytics, resources, and archive-list snapshots use a DynamoDB `Scan` and paginate through all `LastEvaluatedKey` pages. This is required by the current entity-specific keys (`REPORT#{id}`, `INCIDENT#{id}`, etc.): DynamoDB `Query` requires an exact partition-key value, and no GSI or shared entity partition exists to query all reports/incidents. Known report and brief IDs already use `GetItem`; canonical place lookup now uses exact-key `GetItem` before its case-insensitive fallback scan. Report submission reuses its loaded snapshot for incident grouping instead of performing a second full scan.
+- `GET /incidents` and the analytics/intelligence responses currently return complete joined snapshots without an API cursor. Adding response pagination alone would make the current map/evidence/dashboard view incomplete; production-scale pagination needs a coordinated API/client change, ideally alongside an approved query-first index or maintained projection. No index/resource migration is included here.
 - Tests replace boto3 table/client objects with mocks. No AWS resources or live data are created by the automated test suite.
 
 ## Backups and retention

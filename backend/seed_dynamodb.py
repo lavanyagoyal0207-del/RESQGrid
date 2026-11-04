@@ -13,10 +13,6 @@ DATA_PATH = (
     / "mockData.json"
 )
 
-# Read JSON numbers as Decimal because DynamoDB does not accept Python floats.
-with open(DATA_PATH, "r", encoding="utf-8") as file:
-    state = json.load(file, parse_float=Decimal)
-
 
 def save_once(item):
     try:
@@ -25,7 +21,6 @@ def save_once(item):
             ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)"
         )
         print("Saved:", item["PK"])
-
     except ClientError as error:
         if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
             print("Already exists, skipped:", item["PK"])
@@ -33,54 +28,35 @@ def save_once(item):
             raise
 
 
-# Save reports
-for report in state.get("reports", []):
-    report_id = report["report_id"]
+def seed_places(places, save=save_once):
+    for place in places:
+        if isinstance(place, dict):
+            place_name = place.get("name") or place.get("place")
+            place_data = place
+        else:
+            place_name = str(place)
+            place_data = {"name": place_name}
 
-    save_once({
-        "PK": f"REPORT#{report_id}",
-        "SK": "METADATA",
-        **report
-    })
+        if not place_name:
+            print("Skipped place without a name:", place)
+            continue
 
-
-# Save incidents
-for incident in state.get("incidents", []):
-    incident_id = incident["incident_id"]
-
-    save_once({
-        "PK": f"INCIDENT#{incident_id}",
-        "SK": "METADATA",
-        **incident
-    })
+        save({
+            "PK": f"PLACE#{place_name}",
+            "SK": "METADATA",
+            **place_data
+        })
 
 
-# Save places
-for index, place in enumerate(state.get("places", [])):
-    if isinstance(place, dict):
-        place_name = place.get("name") or place.get("place")
-        place_data = place
-    else:
-        place_name = str(place)
-        place_data = {"name": place_name}
+def main():
+    with open(DATA_PATH, "r", encoding="utf-8") as file:
+        state = json.load(file, parse_float=Decimal)
 
-    if not place_name:
-        print("Skipped place without a name:", place)
-        continue
-
-    save_once({
-        "PK": f"PLACE#{place_name}",
-        "SK": "METADATA",
-        **place_data
-    })
+    # mockData.json contains simulated incidents and reports; only fixed
+    # location reference data is safe to initialize in operational storage.
+    seed_places(state.get("places", []), save=save_once)
+    print("\nFixed locations initialized. Simulated reports were not saved.")
 
 
-# Save the situation brief
-if "brief" in state:
-    save_once({
-        "PK": "BRIEF#CURRENT",
-        "SK": "METADATA",
-        **state["brief"]
-    })
-
-print("\nInitial data migration finished.")
+if __name__ == "__main__":
+    main()

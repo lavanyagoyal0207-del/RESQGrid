@@ -125,15 +125,20 @@ export async function postFieldReport(
   apiBase = DEFAULT_API_BASE
 ) {
   try {
-    const idempotencyKey = payload.idempotency_key || getIdempotencyKey();
-    const { idempotency_key, ...reportPayload } = payload;
+    const submissionId =
+      payload.submission_id || payload.idempotency_key || getIdempotencyKey();
+    const idempotencyKey = payload.idempotency_key || submissionId;
+    const { idempotency_key, submission_id, ...reportPayload } = payload;
     const response = await fetchWithTimeout(`${apiBase}/report`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Idempotency-Key': idempotencyKey,
       },
-      body: JSON.stringify(reportPayload),
+      body: JSON.stringify({
+        ...reportPayload,
+        submission_id: submissionId,
+      }),
     });
 
     const data = await readJsonResponse(response);
@@ -173,12 +178,17 @@ export async function postVoiceReport(
     formData.append('place', metadata.place);
     formData.append('type', metadata.type);
     formData.append('severity', metadata.severity);
+    const submissionId =
+      metadata.submission_id ||
+      metadata.idempotency_key ||
+      getIdempotencyKey();
+    formData.append('submission_id', submissionId);
 
     const response = await fetchWithTimeout(`${apiBase}/voice-report`, {
       timeoutMs: 120000,
       method: 'POST',
       headers: {
-        'Idempotency-Key': metadata.idempotency_key || getIdempotencyKey(),
+        'Idempotency-Key': metadata.idempotency_key || submissionId,
       },
       body: formData,
     });

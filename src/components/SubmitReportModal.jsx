@@ -154,6 +154,7 @@ export default function SubmitReportModal({
           type,
           severity,
           idempotency_key: idempotencyKey,
+          submission_id: idempotencyKey,
         });
 
         if (!result.ok) {
@@ -218,6 +219,7 @@ export default function SubmitReportModal({
         type,
         severity,
         idempotency_key: idempotencyKey,
+        submission_id: idempotencyKey,
         source: voiceFileName
           ? `Voice Note (${voiceFileName})`
           : 'Citizen Field Report',

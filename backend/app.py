@@ -19,6 +19,7 @@ from aws_config import table, s3, BUCKET_NAME
 from intelligence import (
     compare_reports,
     detect_emerging_patterns,
+    is_simulated_record,
     process_report,
     translate_text,
 )
@@ -178,7 +179,10 @@ def get_all_items():
         )
         items.extend(response.get("Items", []))
 
-    return items
+    return [
+        item for item in items
+        if not is_simulated_record(item)
+    ]
 
 
 def get_items_by_prefix(prefix):
@@ -196,7 +200,8 @@ def get_brief_item():
             "SK": "METADATA"
         }
     )
-    return response.get("Item")
+    item = response.get("Item")
+    return None if is_simulated_record(item) else item
 
 
 def parse_iso_datetime(value):
@@ -216,20 +221,64 @@ def parse_iso_datetime(value):
 
 def get_idempotent_report_id(namespace):
     idempotency_key = request.headers.get("Idempotency-Key")
+    if idempotency_key is None:
+        if request.is_json:
+            payload = request.get_json(silent=True)
+            idempotency_key = (
+                payload.get("submission_id")
+                if isinstance(payload, dict)
+                else None
+            )
+        else:
+            idempotency_key = request.form.get("submission_id")
+
     if idempotency_key is not None:
+        if not isinstance(idempotency_key, str):
+            return None, (jsonify({
+                "ok": False,
+                "error": "Idempotency-Key or submission_id must be a string."
+            }), 400)
         idempotency_key = idempotency_key.strip()
         if not 8 <= len(idempotency_key) <= 128:
             return None, (jsonify({
                 "ok": False,
-                "error": "Idempotency-Key must be between 8 and 128 characters."
+                "error": (
+                    "Idempotency-Key or submission_id must be between "
+                    "8 and 128 characters."
+                )
             }), 400)
     else:
-        idempotency_key = str(uuid.uuid4())
+        return None, (jsonify({
+            "ok": False,
+            "error": (
+                "Provide Idempotency-Key or a stable submission_id so retries "
+                "cannot create duplicate reports."
+            )
+        }), 400)
 
     digest = hashlib.sha256(
         f"{namespace}:{idempotency_key}".encode("utf-8")
     ).hexdigest()[:20].upper()
     return f"REP-{digest}", None
+
+
+def has_demo_submission_marker(payload):
+    if not isinstance(payload, dict):
+        return False
+    flags = ("is_demo", "is_simulated", "demo_mode", "simulated")
+    if any(
+        payload.get(flag) is True
+        or (
+            isinstance(payload.get(flag), str)
+            and payload[flag].strip().casefold()
+            in {"true", "1", "demo", "simulated"}
+        )
+        for flag in flags
+    ):
+        return True
+    return str(payload.get("data_classification", "")).casefold() in {
+        "demo", "mock", "simulated"
+    }
 
 
 def get_report(report_id):
@@ -245,6 +294,15 @@ def get_report(report_id):
 
 def get_place_by_name(name, items=None):
     if items is None:
+        exact_match = table.get_item(
+            Key={
+                "PK": f"PLACE#{name.strip()}",
+                "SK": "METADATA",
+            },
+            ConsistentRead=True,
+        ).get("Item")
+        if exact_match and not is_simulated_record(exact_match):
+            return exact_match
         items = get_all_items()
     target = name.strip().casefold()
 
@@ -330,8 +388,12 @@ def make_report_operation(report, is_existing):
     }
 
 
-def associate_report_with_incident(report, is_existing=False):
-    all_items = get_all_items()
+def associate_report_with_incident(report, is_existing=False, items=None):
+    all_items = items if items is not None else get_all_items()
+    all_items = [
+        item for item in all_items
+        if not is_simulated_record(item)
+    ]
     place_record = get_place_by_name(report["place"], all_items)
     if not place_record:
         raise ValueError("Place is not in the configured location list.")
@@ -441,7 +503,8 @@ def associate_report_with_incident(report, is_existing=False):
             "grouping_reason": report["grouping_reason"],
             "created_at": report["created_at"],
             "updated_at": report["created_at"],
-            "last_report_at": report["created_at"]
+            "last_report_at": report["created_at"],
+            "data_classification": "operational"
         }
         incident_operation = {
             "Put": {
@@ -702,12 +765,33 @@ def generate_situation_brief(
     patterns=None,
     comparisons=None,
 ):
+    incidents = [
+        incident for incident in incidents
+        if not is_simulated_record(incident)
+    ]
+    reports = [
+        report for report in reports
+        if not is_simulated_record(report)
+    ]
+    report_ids = {
+        report.get("report_id") for report in reports
+        if report.get("report_id")
+    }
     resources = resources or []
     patterns = patterns or {"patterns": []}
     comparisons = comparisons or []
+    patterns = {
+        **patterns,
+        "patterns": [
+            pattern for pattern in patterns.get("patterns", [])
+            if pattern.get("supporting_report_ids")
+            and set(pattern["supporting_report_ids"]).issubset(report_ids)
+        ],
+    }
     active_incidents = [
         incident for incident in incidents
         if incident.get("status") != "Rejected"
+        and incident.get("response_status") != "Resolved"
     ]
     report_by_id = {report.get("report_id"): report for report in reports}
     affected_locations = sorted({
@@ -1127,6 +1211,12 @@ def submit_voice_report():
         "mp4": "audio/mp4"
     }
 
+    if has_demo_submission_marker(request.form.to_dict()):
+        return jsonify({
+            "ok": False,
+            "error": "Simulated reports cannot be submitted to operational storage."
+        }), 400
+
     report_id, idempotency_error = get_idempotent_report_id("voice")
     if idempotency_error:
         return idempotency_error
@@ -1219,7 +1309,8 @@ def submit_voice_report():
         "detected_language": "unknown",
         "transcription_status": "Pending",
         "review_status": "Needs Human Review",
-        "verification_status": "Unverified"
+        "verification_status": "Unverified",
+        "data_classification": "operational"
     }
 
     try:
@@ -1315,7 +1406,11 @@ def submit_voice_report():
     )
 
     try:
-        associate_report_with_incident(voice_report, is_existing=True)
+        associate_report_with_incident(
+            voice_report,
+            is_existing=True,
+            items=intelligence_items,
+        )
         mark_brief_needs_review()
     except Exception:
         app.logger.exception("Could not associate voice report %s with incident", report_id)
@@ -1425,7 +1520,10 @@ def get_incidents():
 
 
 def load_intelligence_snapshot():
-    items = get_all_items()
+    items = [
+        item for item in get_all_items()
+        if not is_simulated_record(item)
+    ]
     incidents = [
         convert_numbers(item)
         for item in items
@@ -1807,6 +1905,11 @@ def submit_report():
 
     if not isinstance(payload, dict):
         return jsonify({"ok": False, "error": "A JSON object is required."}), 400
+    if has_demo_submission_marker(payload):
+        return jsonify({
+            "ok": False,
+            "error": "Simulated reports cannot be submitted to operational storage."
+        }), 400
 
     original_text = payload.get("original_text")
     place = payload.get("place")
@@ -1863,28 +1966,39 @@ def submit_report():
         "severity": severity,
         "created_at": now_iso,
         "verification_status": "Unverified",
-        "review_status": "Needs Human Review"
+        "review_status": "Needs Human Review",
+        "data_classification": "operational"
     }
     enrich_report(new_report, intelligence_items)
 
     try:
-        associate_report_with_incident(new_report)
-        mark_brief_needs_review()
+        associate_report_with_incident(new_report, items=intelligence_items)
     except Exception:
         existing_report = get_report(report_id)
         if existing_report:
             return jsonify({
-                "ok": False,
-                "error": (
-                    "The report is saved, but incident grouping did not "
-                    "complete. It remains available for review."
-                ),
+                "ok": True,
+                "duplicate": True,
+                "message": "This report was already submitted.",
                 "report": public_report(existing_report)
-            }), 500
+            }), 200
         app.logger.exception("Report submission failed for %s", report_id)
         return jsonify({
             "ok": False,
             "error": "The report and incident association could not be saved."
+        }), 500
+
+    try:
+        mark_brief_needs_review()
+    except Exception:
+        app.logger.exception("Report saved but current brief could not be marked for review")
+        return jsonify({
+            "ok": False,
+            "error": (
+                "The report was saved, but the current brief could not be "
+                "marked for review."
+            ),
+            "report": public_report(new_report),
         }), 500
 
     return jsonify({"ok": True, "report": public_report(new_report)}), 201

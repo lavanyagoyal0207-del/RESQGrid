@@ -132,3 +132,15 @@ No package was installed during the audit. An npm vulnerability scan was not rer
 8. Add browser end-to-end, accessibility, responsive visual, and deployment smoke tests; complete a future-development roadmap.
 
 **No fixes were applied as part of this audit.** Any remediation requires separate approval.
+
+## Remediation follow-up — 2026-11-05
+
+The focused follow-up changes address the data-integrity findings above:
+
+- The DynamoDB seed entry point writes fixed locations only. Citizen intake rejects explicit demo markers, operational snapshots filter legacy mock report/incident IDs and the previously seeded mock brief, and new operational reports/incidents carry a data classification.
+- `Idempotency-Key` remains supported; clients may use a stable `submission_id` in JSON or multipart form data as the no-header retry fallback. The frontend sends both. The backend rejects requests missing both identifiers. Conditional DynamoDB writes and duplicate lookup make concurrent retries return the saved report; separate actions use separate IDs even for identical text.
+- Pattern windows use current server time and only recent reports (up to 24 hours). Stale and insufficient evidence is labeled and does not produce a current pattern.
+- Brief counts exclude both rejected and response-resolved incidents.
+- The report submission path reuses its already-loaded DynamoDB snapshot for grouping, and canonical place lookup uses exact-key `GetItem`. Dashboard/intelligence/analytics snapshots still need paginated full-table scans because the current keys have no shared partition or GSI; coordinated API/client pagination is deferred rather than returning incomplete joined dashboards.
+
+**Follow-up validation:** backend `python -m unittest -v` — 59 tests passed; frontend `npm test -- --run` — 11 tests passed across 4 files; `npm run build` — passed; backend Python compilation — passed. Tests use mocked AWS services. No AWS resources/data were changed and no deployment/live-data verification was performed.

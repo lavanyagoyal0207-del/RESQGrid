@@ -7,6 +7,7 @@ import types
 import unittest
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from threading import Barrier, Lock, Thread
 from unittest.mock import MagicMock, patch
 from werkzeug.security import generate_password_hash
 
@@ -146,6 +147,212 @@ class BackendWorkflowTests(unittest.TestCase):
         self.s3.put_object.assert_not_called()
         self.table.put_item.assert_not_called()
 
+    def test_demo_marked_submissions_are_rejected_before_storage(self):
+        text_response = self.client.post(
+            "/report",
+            json={
+                "original_text": "Sample report",
+                "place": "Mandi",
+                "type": "Flood",
+                "severity": "High",
+                "is_demo": True,
+            },
+        )
+        voice_response = self.client.post(
+            "/voice-report",
+            data={"demo_mode": "true"},
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(text_response.status_code, 400)
+        self.assertEqual(voice_response.status_code, 400)
+        self.assertEqual(self.table.scan.call_count, 0)
+        self.table.put_item.assert_not_called()
+        self.s3.put_object.assert_not_called()
+
+    def test_missing_header_and_submission_id_are_rejected(self):
+        response = self.client.post(
+            "/report",
+            json={
+                "original_text": "Water is rising.",
+                "place": "Mandi",
+                "type": "Flood",
+                "severity": "High",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("submission_id", response.get_json()["error"])
+        self.table.scan.assert_not_called()
+        self.table.meta.client.transact_write_items.assert_not_called()
+
+    def test_missing_header_retry_uses_stable_submission_id(self):
+        payload = {
+            "original_text": "Water is rising near the bridge.",
+            "place": "Mandi",
+            "type": "Flood",
+            "severity": "High",
+            "submission_id": "browser-action-0001",
+        }
+        saved_report = {
+            "report_id": "REP-SAVED",
+            "original_text": payload["original_text"],
+            "verification_status": "Unverified",
+        }
+        with patch.object(
+            backend_app,
+            "get_report",
+            side_effect=[None, saved_report],
+        ), patch.object(
+            backend_app,
+            "get_all_items",
+            return_value=[PLACE],
+        ), patch.object(
+            backend_app,
+            "associate_report_with_incident",
+        ) as associate, patch.object(
+            backend_app,
+            "mark_brief_needs_review",
+        ):
+            first = self.client.post("/report", json=payload)
+            retry = self.client.post("/report", json=payload)
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(retry.status_code, 200)
+        self.assertTrue(retry.get_json()["duplicate"])
+        self.assertEqual(associate.call_count, 1)
+
+    def test_voice_retry_without_header_reuses_submission_id(self):
+        saved_report = {
+            "report_id": "REP-VOICE-SAVED",
+            "original_text": "The water is rising.",
+            "audio_s3_key": "voice-reports/REP-VOICE-SAVED.wav",
+        }
+
+        def submit_voice():
+            return self.client.post(
+                "/voice-report",
+                data={
+                    "submission_id": "voice-action-0001",
+                    "audio": (
+                        BytesIO(b"test audio data"),
+                        "recording.wav",
+                        "audio/wav",
+                    ),
+                    "place": "Mandi",
+                    "type": "Flood",
+                    "severity": "High",
+                },
+                content_type="multipart/form-data",
+            )
+
+        with patch.object(
+            backend_app,
+            "get_report",
+            side_effect=[None, saved_report],
+        ):
+            first = submit_voice()
+            retry = submit_voice()
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(retry.status_code, 200)
+        self.assertTrue(retry.get_json()["duplicate"])
+        self.s3.put_object.assert_called_once()
+        self.transcribe_mock.assert_called_once()
+
+    def test_identical_text_with_distinct_submission_ids_is_preserved(self):
+        base_payload = {
+            "original_text": "Water is rising near the bridge.",
+            "place": "Mandi",
+            "type": "Flood",
+            "severity": "High",
+        }
+        with patch.object(backend_app, "get_report", return_value=None), patch.object(
+            backend_app, "get_all_items", return_value=[PLACE]
+        ), patch.object(
+            backend_app, "associate_report_with_incident"
+        ), patch.object(backend_app, "mark_brief_needs_review"):
+            first = self.client.post(
+                "/report",
+                json={**base_payload, "submission_id": "citizen-action-0001"},
+            )
+            second = self.client.post(
+                "/report",
+                json={**base_payload, "submission_id": "citizen-action-0002"},
+            )
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(second.status_code, 201)
+        self.assertNotEqual(
+            first.get_json()["report"]["report_id"],
+            second.get_json()["report"]["report_id"],
+        )
+
+    def test_concurrent_retries_without_header_create_one_report(self):
+        payload = {
+            "original_text": "Water is rising near the bridge.",
+            "place": "Mandi",
+            "type": "Flood",
+            "severity": "High",
+            "submission_id": "concurrent-action-0001",
+        }
+        saved_reports = {}
+        state_lock = Lock()
+        initial_reads = 0
+        read_barrier = Barrier(2)
+
+        def read_report(report_id):
+            nonlocal initial_reads
+            with state_lock:
+                wait_for_peer = initial_reads < 2
+                if wait_for_peer:
+                    initial_reads += 1
+            if wait_for_peer:
+                read_barrier.wait(timeout=5)
+            with state_lock:
+                return saved_reports.get(report_id)
+
+        def associate(report, items=None):
+            with state_lock:
+                if report["report_id"] in saved_reports:
+                    raise RuntimeError("Conditional transaction conflict")
+                saved_reports[report["report_id"]] = dict(report)
+
+        responses = []
+        response_lock = Lock()
+
+        def submit():
+            with backend_app.app.test_client() as client:
+                response = client.post("/report", json=payload)
+                with response_lock:
+                    responses.append(response)
+
+        with patch.object(
+            backend_app, "get_report", side_effect=read_report
+        ), patch.object(
+            backend_app, "get_all_items", return_value=[PLACE]
+        ), patch.object(
+            backend_app,
+            "associate_report_with_incident",
+            side_effect=associate,
+        ), patch.object(backend_app, "mark_brief_needs_review"):
+            threads = [Thread(target=submit), Thread(target=submit)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=10)
+
+        self.assertTrue(all(not thread.is_alive() for thread in threads))
+        self.assertEqual(
+            sorted(response.status_code for response in responses),
+            [200, 201],
+        )
+        self.assertEqual(len(saved_reports), 1)
+        self.assertEqual(
+            sum(bool(response.get_json().get("duplicate")) for response in responses),
+            1,
+        )
+
     def test_duplicate_voice_submission_does_not_upload_audio_again(self):
         report = {
             "report_id": "REP-DUPLICATE",
@@ -159,6 +366,54 @@ class BackendWorkflowTests(unittest.TestCase):
         self.assertTrue(response.get_json()["duplicate"])
         self.s3.put_object.assert_not_called()
         self.table.put_item.assert_not_called()
+
+    def test_association_reuses_loaded_snapshot_instead_of_scanning_again(self):
+        report = {
+            "report_id": "REP-SNAPSHOT",
+            "original_text": "Water is rising.",
+            "type": "Flood",
+            "place": "Mandi",
+            "severity": "High",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with patch.object(backend_app, "get_all_items") as load_items:
+            backend_app.associate_report_with_incident(
+                report,
+                items=[PLACE],
+            )
+
+        load_items.assert_not_called()
+        self.table.meta.client.transact_write_items.assert_called_once()
+
+    def test_full_table_scan_continues_using_dynamodb_pagination(self):
+        self.table.scan.side_effect = [
+            {
+                "Items": [PLACE],
+                "LastEvaluatedKey": {"PK": "PLACE#Mandi", "SK": "METADATA"},
+            },
+            {"Items": [{"PK": "RESOURCE#R-1", "SK": "METADATA"}]},
+        ]
+
+        records = backend_app.get_all_items()
+
+        self.assertEqual(len(records), 2)
+        self.assertEqual(self.table.scan.call_count, 2)
+        self.assertEqual(
+            self.table.scan.call_args_list[1].kwargs["ExclusiveStartKey"],
+            {"PK": "PLACE#Mandi", "SK": "METADATA"},
+        )
+
+    def test_canonical_place_lookup_uses_exact_dynamodb_key(self):
+        self.table.get_item.return_value = {"Item": PLACE}
+
+        result = backend_app.get_place_by_name("Mandi")
+
+        self.assertEqual(result, PLACE)
+        self.table.get_item.assert_called_once_with(
+            Key={"PK": "PLACE#Mandi", "SK": "METADATA"},
+            ConsistentRead=True,
+        )
+        self.table.scan.assert_not_called()
 
     def test_report_grouping_requires_same_type_location_and_time(self):
         now = datetime.now(timezone.utc)

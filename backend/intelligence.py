@@ -12,6 +12,39 @@ LANGUAGE_NAMES = {
     "unknown": "Unknown",
 }
 
+SIMULATED_REPORT_IDS = {
+    f"REP-{number}" for number in range(9001, 9026)
+}
+SIMULATED_INCIDENT_IDS = {
+    f"INC-{number}" for number in range(101, 116)
+}
+SIMULATED_BRIEF_GENERATED_AT = "2026-11-03T22:50:00+05:30"
+
+
+def is_simulated_record(record):
+    if not isinstance(record, dict):
+        return False
+
+    if (
+        record.get("is_simulated") is True
+        or record.get("is_demo") is True
+        or record.get("simulated") is True
+        or record.get("demo_mode") is True
+        or str(record.get("data_classification", "")).casefold()
+        in {"demo", "mock", "simulated"}
+    ):
+        return True
+
+    if record.get("report_id") in SIMULATED_REPORT_IDS:
+        return True
+    if record.get("incident_id") in SIMULATED_INCIDENT_IDS:
+        return True
+    return (
+        record.get("PK") == "BRIEF#CURRENT"
+        and record.get("generated_at") == SIMULATED_BRIEF_GENERATED_AT
+    )
+
+
 TYPE_TERMS = {
     "Flood": {
         "en": ("flood", "flooding", "water is rising", "submerged"),
@@ -719,20 +752,47 @@ def distance_km(left, right):
         return float("inf")
 
 
-def detect_emerging_patterns(reports, incidents, places):
+def detect_emerging_patterns(reports, incidents, places, now=None):
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    now = now.astimezone(timezone.utc)
+    recent_cutoff = now - timedelta(hours=24)
+    operational_reports = [
+        report for report in reports
+        if not is_simulated_record(report)
+        and report.get("verification_status") != "Rejected"
+    ]
     valid_times = [
         parse_timestamp(report.get("created_at"))
-        for report in reports
-        if report.get("verification_status") != "Rejected"
+        for report in operational_reports
     ]
-    as_of = max((value for value in valid_times if value), default=None)
-    if not as_of:
+    recent_reports = [
+        report for report in operational_reports
+        if (timestamp := parse_timestamp(report.get("created_at")))
+        and recent_cutoff <= timestamp <= now
+    ]
+    if not recent_reports:
+        stale_count = sum(
+            1 for timestamp in valid_times
+            if timestamp and timestamp < recent_cutoff
+        )
+        data_status = "stale" if stale_count else "insufficient"
         return {
-            "label": "Evidence-based anomaly indicators; not disaster predictions.",
-            "detected_at": datetime.now(timezone.utc).isoformat(),
+            "label": (
+                "Stale evidence — no reports from the last 24 hours; "
+                "no current emerging patterns are shown."
+                if data_status == "stale"
+                else "Insufficient recent evidence — no current emerging patterns are shown."
+            ),
+            "data_status": data_status,
+            "stale_report_count": stale_count,
+            "evaluated_at": now.isoformat(),
+            "detected_at": now.isoformat(),
             "patterns": [],
         }
 
+    as_of = now
     window = timedelta(minutes=60)
     place_by_name = {
         (place.get("place") or place.get("name", "")).casefold(): place
@@ -740,12 +800,10 @@ def detect_emerging_patterns(reports, incidents, places):
         if isinstance(place.get("place") or place.get("name"), str)
     }
     reports_by_place = {}
-    for report in reports:
-        if report.get("verification_status") == "Rejected":
-            continue
+    for report in recent_reports:
         place = report.get("place")
         timestamp = parse_timestamp(report.get("created_at"))
-        if place and timestamp:
+        if place and timestamp and recent_cutoff <= timestamp <= now:
             reports_by_place.setdefault(place.casefold(), []).append((report, timestamp))
 
     patterns = []
@@ -772,7 +830,7 @@ def detect_emerging_patterns(reports, incidents, places):
                 "supporting_report_ids": ids,
                 "current_count": len(current),
                 "previous_count": len(previous),
-                "detected_at": datetime.now(timezone.utc).isoformat(),
+                "detected_at": now.isoformat(),
                 "evidence_strength": (
                     f"Observed counts only ({len(current)} vs {len(previous)}); "
                     "heuristic threshold, not a validated prediction."
@@ -799,7 +857,7 @@ def detect_emerging_patterns(reports, incidents, places):
                 ],
                 "current_count": len(high),
                 "previous_count": None,
-                "detected_at": datetime.now(timezone.utc).isoformat(),
+                "detected_at": now.isoformat(),
                 "evidence_strength": "Based on stored severity labels; human review required.",
                 "confidence": "Limited",
             })
@@ -834,7 +892,7 @@ def detect_emerging_patterns(reports, incidents, places):
                 ],
                 "current_count": len(damage_reports),
                 "previous_count": None,
-                "detected_at": datetime.now(timezone.utc).isoformat(),
+                "detected_at": now.isoformat(),
                 "evidence_strength": "Keyword-based report evidence; verify against originals.",
                 "confidence": "Limited",
             })
@@ -842,7 +900,15 @@ def detect_emerging_patterns(reports, incidents, places):
     # Nearby incidents are reported as a descriptive cluster, never as a forecast.
     incident_groups = {}
     for incident in incidents:
-        if incident.get("status") == "Rejected":
+        if (
+            is_simulated_record(incident)
+            or incident.get("status") == "Rejected"
+            or incident.get("response_status") == "Resolved"
+        ):
+            continue
+        if not set(incident.get("report_ids", [])) & {
+            report.get("report_id") for report in recent_reports
+        }:
             continue
         place = (incident.get("place") or "").casefold()
         if place in place_by_name:
@@ -889,14 +955,24 @@ def detect_emerging_patterns(reports, incidents, places):
             )),
             "current_count": len(cluster_incidents),
             "previous_count": None,
-            "detected_at": datetime.now(timezone.utc).isoformat(),
+            "detected_at": now.isoformat(),
             "evidence_strength": "Geographic proximity and stored incident counts only.",
             "confidence": "Limited",
         })
 
     return {
-        "label": "Observed anomaly indicators; not validated disaster predictions.",
-        "detected_at": datetime.now(timezone.utc).isoformat(),
+        "label": (
+            "Current observed anomaly indicators; not validated disaster predictions."
+            if patterns
+            else "Insufficient recent evidence for a pattern; not a disaster prediction."
+        ),
+        "data_status": "current" if patterns else "insufficient",
+        "stale_report_count": sum(
+            1 for timestamp in valid_times
+            if timestamp and timestamp < recent_cutoff
+        ),
+        "evaluated_at": now.isoformat(),
+        "detected_at": now.isoformat(),
         "as_of": as_of.isoformat(),
         "window_minutes": 60,
         "patterns": patterns,

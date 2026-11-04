@@ -1,0 +1,628 @@
+{
+  "meta": {
+    "system": "ResQGrid Night-Watch Control Room",
+    "mode": "SIMULATED DATA",
+    "golden_rule": "AI only SUGGESTS, human CONFIRMS.",
+    "generated_at": "2026-11-03T22:58:00+05:30"
+  },
+  "places": [
+    {
+      "place": "Mandi",
+      "lat": 31.7087,
+      "lng": 76.932,
+      "district": "Mandi",
+      "elevation": "760m"
+    },
+    {
+      "place": "Jogindarnagar",
+      "lat": 31.9912,
+      "lng": 76.7899,
+      "district": "Mandi",
+      "elevation": "1,220m"
+    },
+    {
+      "place": "Kullu",
+      "lat": 31.9592,
+      "lng": 77.1089,
+      "district": "Kullu",
+      "elevation": "1,279m"
+    },
+    {
+      "place": "Manali",
+      "lat": 32.2432,
+      "lng": 77.1892,
+      "district": "Kullu",
+      "elevation": "2,050m"
+    },
+    {
+      "place": "Shimla",
+      "lat": 31.1048,
+      "lng": 77.1734,
+      "district": "Shimla",
+      "elevation": "2,276m"
+    },
+    {
+      "place": "Dharamshala",
+      "lat": 32.219,
+      "lng": 76.3234,
+      "district": "Kangra",
+      "elevation": "1,457m"
+    },
+    {
+      "place": "Pandoh",
+      "lat": 31.67,
+      "lng": 77.05,
+      "district": "Mandi",
+      "elevation": "890m"
+    },
+    {
+      "place": "Aut",
+      "lat": 31.7456,
+      "lng": 77.2078,
+      "district": "Mandi",
+      "elevation": "940m"
+    },
+    {
+      "place": "Chamba",
+      "lat": 32.5534,
+      "lng": 76.1258,
+      "district": "Chamba",
+      "elevation": "996m"
+    },
+    {
+      "place": "Bilaspur",
+      "lat": 31.3396,
+      "lng": 76.7607,
+      "district": "Bilaspur",
+      "elevation": "673m"
+    },
+    {
+      "place": "Hamirpur",
+      "lat": 31.6862,
+      "lng": 76.5213,
+      "district": "Hamirpur",
+      "elevation": "785m"
+    },
+    {
+      "place": "Solan",
+      "lat": 30.9045,
+      "lng": 77.0967,
+      "district": "Solan",
+      "elevation": "1,550m"
+    },
+    {
+      "place": "Rampur Bushahr",
+      "lat": 31.4492,
+      "lng": 77.632,
+      "district": "Shimla",
+      "elevation": "1,021m"
+    },
+    {
+      "place": "Reckong Peo",
+      "lat": 31.5404,
+      "lng": 78.2721,
+      "district": "Kinnaur",
+      "elevation": "2,290m"
+    },
+    {
+      "place": "Keylong",
+      "lat": 32.5711,
+      "lng": 77.032,
+      "district": "Lahaul & Spiti",
+      "elevation": "3,080m"
+    }
+  ],
+  "reports": [
+    {
+      "report_id": "REP-9001",
+      "source": "SMS Gateway",
+      "original_text": "मंडी में ब्यास नदी का पानी पंचवक्त्र मंदिर के पुल के ऊपर आ गया है, निचले इलाके में पानी भर रहा है!",
+      "translated_text": "Beas river water in Mandi has risen above the Panchvaktra temple bridge, low-lying areas are flooding rapidly.",
+      "type": "Flood",
+      "place": "Mandi",
+      "severity": "High",
+      "created_at": "2026-11-03T22:42:00+05:30"
+    },
+    {
+      "report_id": "REP-9002",
+      "source": "Voice Note (Hindi)",
+      "original_text": "Victoria Bridge ke paas paani khatre ke nishan se 4 feet upar beh raha hai, dukano mein paani ghus gaya.",
+      "translated_text": "Near Victoria Bridge water is flowing 4 feet above the danger mark; water has entered local shops.",
+      "type": "Flood",
+      "place": "Mandi",
+      "severity": "High",
+      "created_at": "2026-11-03T22:38:00+05:30"
+    },
+    {
+      "report_id": "REP-9003",
+      "source": "Helpline Call (Punjabi)",
+      "original_text": "ਮੰਡੀ ਬੱਸ ਸਟੈਂਡ ਦੇ ਨੇੜੇ ਪਾਣੀ ਬਹੁਤ ਤੇਜ਼ੀ ਨਾਲ ਵੱਧ ਰਿਹਾ ਹੈ, ਕਈ ਗੱਡੀਆਂ ਫਸ ਗਈਆਂ ਹਨ।",
+      "translated_text": "Water is rising very fast near Mandi Bus Stand, several vehicles are stranded in the waterlogged stretch.",
+      "type": "Flood",
+      "place": "Mandi",
+      "severity": "High",
+      "created_at": "2026-11-03T22:31:00+05:30"
+    },
+    {
+      "report_id": "REP-9004",
+      "source": "Citizen Web Form",
+      "original_text": " सुकेती खड्ड और ब्यास के संगम पर भारी उफान है, लोग छतों पर चढ़ रहे हैं।",
+      "translated_text": "Heavy surge at the confluence of Suketi Khad and Beas river; residents are moving to rooftops.",
+      "type": "Flood",
+      "place": "Mandi",
+      "severity": "High",
+      "created_at": "2026-11-03T22:25:00+05:30"
+    },
+    {
+      "report_id": "REP-9005",
+      "source": "Voice Note (Hindi)",
+      "original_text": "जोगिंदरनगर-मंडी हाईवे पर कोटरोपी के पास पहाड़ी दरक गई है, बड़ा मलबा सड़क पर गिरा है।",
+      "translated_text": "Hillside has collapsed near Kotropi on the Jogindarnagar-Mandi highway; massive debris has fallen on the road.",
+      "type": "Landslide",
+      "place": "Jogindarnagar",
+      "severity": "High",
+      "created_at": "2026-11-03T22:35:00+05:30"
+    },
+    {
+      "report_id": "REP-9006",
+      "source": "SMS Gateway",
+      "original_text": "Jogindarnagar railway crossing ke aage pahad se patthar gir rahe hain, rasta band hai.",
+      "translated_text": "Boulders are falling from the mountain ahead of Jogindarnagar railway crossing; route is completely obstructed.",
+      "type": "Landslide",
+      "place": "Jogindarnagar",
+      "severity": "High",
+      "created_at": "2026-11-03T22:22:00+05:30"
+    },
+    {
+      "report_id": "REP-9007",
+      "source": "Field Radio",
+      "original_text": "जोगिंदरनगर में बिजली के खंभे मलबे की चपेट में आ गए हैं, अंधेरा छाया हुआ है।",
+      "translated_text": "Power poles in Jogindarnagar have been hit by landslide debris, causing a local blackout.",
+      "type": "Landslide",
+      "place": "Jogindarnagar",
+      "severity": "High",
+      "created_at": "2026-11-03T22:14:00+05:30"
+    },
+    {
+      "report_id": "REP-9008",
+      "source": "Voice Note (Punjabi)",
+      "original_text": "ਪੰਡੋਹ ਡੈਮ ਦੇ ਕੋਲ NH-21 ਤੇ ਵੱਡੇ ਪੱਥਰ ਡਿੱਗਣ ਕਾਰਨ ਦੋਵੇਂ ਪਾਸੇ ਟ੍ਰੈਫਿਕ ਬੰਦ ਹੋ ਗਿਆ ਹੈ, ਟਰੱਕਾਂ ਦੀ ਲੰਬੀ ਲਾਈਨ ਲੱਗੀ ਹੈ।",
+      "translated_text": "Due to large boulders falling on NH-21 near Pandoh Dam, traffic on both sides is halted with a long queue of trucks.",
+      "type": "Blocked Road",
+      "place": "Pandoh",
+      "severity": "Medium",
+      "created_at": "2026-11-03T22:18:00+05:30"
+    },
+    {
+      "report_id": "REP-9009",
+      "source": "SMS Gateway",
+      "original_text": "पंडोह कैंची मोड़ के पास सड़क का एक हिस्सा धंस गया है, केवल पैदल निकलना भी मुश्किल है।",
+      "translated_text": "A section of road near Pandoh hairpin bend has subsided; even pedestrian passage is difficult.",
+      "type": "Blocked Road",
+      "place": "Pandoh",
+      "severity": "Medium",
+      "created_at": "2026-11-03T22:05:00+05:30"
+    },
+    {
+      "report_id": "REP-9010",
+      "source": "Helpline Call (Hindi)",
+      "original_text": "कुल्लू में सरवरी खड्ड का जलस्तर अचानक बढ़ गया है, अखाड़ा बाजार के पास अलर्ट की जरूरत है।",
+      "translated_text": "Water level in Sarvari Khad in Kullu has surged suddenly; alert needed near Akhara Bazaar.",
+      "type": "Flood",
+      "place": "Kullu",
+      "severity": "High",
+      "created_at": "2026-11-03T22:10:00+05:30"
+    },
+    {
+      "report_id": "REP-9011",
+      "source": "Voice Note (Hindi)",
+      "original_text": "Akhara Bazaar pull ke neeche paani किनारों को तोड़ रहा है, नदी के पास वाले कैंप खाली कराए जा रहे हैं।",
+      "translated_text": "Water under Akhara Bazaar bridge is eroding the banks; riverside camps are being evacuated.",
+      "type": "Flood",
+      "place": "Kullu",
+      "severity": "High",
+      "created_at": "2026-11-03T21:55:00+05:30"
+    },
+    {
+      "report_id": "REP-9012",
+      "source": "SMS Gateway",
+      "original_text": "औट टनल के उत्तरी पोर्टल के बाहर मलबा आने से कुल्लू-मंडी मार्ग बाधित हो गया है।",
+      "translated_text": "Debris outside the north portal of Aut Tunnel has blocked the Kullu-Mandi carriageway.",
+      "type": "Blocked Road",
+      "place": "Aut",
+      "severity": "Medium",
+      "created_at": "2026-11-03T21:48:00+05:30"
+    },
+    {
+      "report_id": "REP-9013",
+      "source": "Voice Note (Punjabi)",
+      "original_text": "ਔਟ ਸੁਰੰਗ ਦੇ ਬਾਹਰ ਮਲਬਾ ਪਿਆ ਹੈ, ਬੱਸਾਂ ਅਤੇ ਯਾਤਰੀ ਪਿਛਲੇ ਇੱਕ ਘੰਟੇ ਤੋਂ ਰੁਕੇ ਹੋਏ ਹਨ।",
+      "translated_text": "Debris lies outside Aut tunnel; buses and passengers have been stranded for the past hour.",
+      "type": "Blocked Road",
+      "place": "Aut",
+      "severity": "Medium",
+      "created_at": "2026-11-03T21:36:00+05:30"
+    },
+    {
+      "report_id": "REP-9014",
+      "source": "Citizen Web Form",
+      "original_text": "मनाली में आलू ग्राउंड के पास ब्यास ने सड़क का हिस्सा काट दिया है और ऊपर से पत्थर गिर रहे हैं।",
+      "translated_text": "Near Aloo Ground in Manali, the Beas river has eroded a section of the highway and rocks are falling from above.",
+      "type": "Landslide",
+      "place": "Manali",
+      "severity": "High",
+      "created_at": "2026-11-03T21:30:00+05:30"
+    },
+    {
+      "report_id": "REP-9015",
+      "source": "SMS Gateway",
+      "original_text": "Manali Left Bank road par पेड़ और मिट्टी गिरने से रास्ता बंद है।",
+      "translated_text": "Manali Left Bank road is obstructed due to fallen deodar trees and mudslide.",
+      "type": "Landslide",
+      "place": "Manali",
+      "severity": "Medium",
+      "created_at": "2026-11-03T21:15:00+05:30"
+    },
+    {
+      "report_id": "REP-9016",
+      "source": "Helpline Call (Hindi)",
+      "original_text": "शिमला के समरहिल और बालूगंज क्षेत्र में तेज बारिश के बाद डंगा गिर गया है, पेड़ सड़क पर झुके हैं।",
+      "translated_text": "Retaining wall collapsed in Shimla's Summerhill and Boileauganj area after heavy rain; trees are leaning over the road.",
+      "type": "Landslide",
+      "place": "Shimla",
+      "severity": "Medium",
+      "created_at": "2026-11-03T21:05:00+05:30"
+    },
+    {
+      "report_id": "REP-9017",
+      "source": "SMS Gateway",
+      "original_text": "Shimla Cart Road par malba aaya hai, single lane traffic chal raha hai.",
+      "translated_text": "Debris reported on Shimla Cart Road; traffic reduced to a single lane.",
+      "type": "Landslide",
+      "place": "Shimla",
+      "severity": "Medium",
+      "created_at": "2026-11-03T20:50:00+05:30"
+    },
+    {
+      "report_id": "REP-9018",
+      "source": "Voice Note (Hindi)",
+      "original_text": "धर्मशाला-मैकलोडगंज रोड पर खड़ा डंडा मार्ग में भूस्खलन हुआ है, वाहन फंसे हैं।",
+      "translated_text": "Landslide reported on Khara Danda road along the Dharamshala-McLeodganj route; vehicles are stuck.",
+      "type": "Landslide",
+      "place": "Dharamshala",
+      "severity": "Medium",
+      "created_at": "2026-11-03T20:40:00+05:30"
+    },
+    {
+      "report_id": "REP-9019",
+      "source": "SMS Gateway",
+      "original_text": "चंबा-भरमौर मार्ग पर बघेईगढ़ के पास पत्थर गिरने से सड़क बंद हो गई है।",
+      "translated_text": "Chamba-Bharmour road is closed near Bagheigarh due to continuous rockfall.",
+      "type": "Blocked Road",
+      "place": "Chamba",
+      "severity": "Low",
+      "created_at": "2026-11-03T20:25:00+05:30"
+    },
+    {
+      "report_id": "REP-9020",
+      "source": "Field Radio",
+      "original_text": "किन्नौर में रिकांग पियो के पास निगुलसरी सेक्शन में पहाड़ी से बोल्डर गिरने की सूचना है।",
+      "translated_text": "Boulders reported falling from the hillside at Nigulsari section near Reckong Peo in Kinnaur.",
+      "type": "Landslide",
+      "place": "Reckong Peo",
+      "severity": "High",
+      "created_at": "2026-11-03T20:12:00+05:30"
+    },
+    {
+      "report_id": "REP-9021",
+      "source": "Voice Note (Punjabi)",
+      "original_text": "ਸੋਲਨ ਦੇ ਚੱਕੀ ਮੋੜ ਕੋਲ ਪਹਾੜੀ ਤੋਂ ਮਿੱਟੀ ਡਿੱਗੀ ਹੈ, ਸ਼ਿਮਲਾ-ਕਾਲਕਾ ਹਾਈਵੇ ਤੇ ਹੌਲੀ ਆਵਾਜਾਈ ਚੱਲ ਰਹੀ ਹੈ।",
+      "translated_text": "Mudslide near Chakki Mor in Solan; slow movement on the Shimla-Kalka highway.",
+      "type": "Blocked Road",
+      "place": "Solan",
+      "severity": "Low",
+      "created_at": "2026-11-03T19:55:00+05:30"
+    },
+    {
+      "report_id": "REP-9022",
+      "source": "SMS Gateway",
+      "original_text": "बिलासपुर में सतलुज का जलस्तर गोविंद सागर झील के किनारे बढ़ रहा है, ग्रामीण सतर्क हैं।",
+      "translated_text": "Sutlej water level in Bilaspur is rising along Gobind Sagar reservoir banks; villagers on alert.",
+      "type": "Flood",
+      "place": "Bilaspur",
+      "severity": "Low",
+      "created_at": "2026-11-03T19:40:00+05:30"
+    },
+    {
+      "report_id": "REP-9023",
+      "source": "Citizen Web Form",
+      "original_text": "हमीरपुर-सुजानपुर सड़क पर नाले का पानी और कीचड़ आने से छोटे वाहनों का निकलना बंद है।",
+      "translated_text": "Stream overflow and slush on Hamirpur-Sujanpur road has halted passage for light vehicles.",
+      "type": "Blocked Road",
+      "place": "Hamirpur",
+      "severity": "Low",
+      "created_at": "2026-11-03T19:20:00+05:30"
+    },
+    {
+      "report_id": "REP-9024",
+      "source": "Helpline Call (Hindi)",
+      "original_text": "रामपुर बुशहर में समेज खड्ड और सतलुज नदी में मटमैला पानी बहुत तेज बहाव के साथ आ रहा है।",
+      "translated_text": "Muddy water flowing with high velocity in Samej Khad and Sutlej river at Rampur Bushahr.",
+      "type": "Flood",
+      "place": "Rampur Bushahr",
+      "severity": "Medium",
+      "created_at": "2026-11-03T19:05:00+05:30"
+    },
+    {
+      "report_id": "REP-9025",
+      "source": "Field Radio",
+      "original_text": "केलांग और दारचा के बीच नाले में पत्थर और पानी आने से मनाली-लेह मार्ग अस्थायी रूप से रुका है।",
+      "translated_text": "Flash stream debris between Keylong and Darcha has temporarily halted the Manali-Leh road.",
+      "type": "Blocked Road",
+      "place": "Keylong",
+      "severity": "Low",
+      "created_at": "2026-11-03T18:50:00+05:30"
+    }
+  ],
+  "incidents": [
+    {
+      "incident_id": "INC-101",
+      "type": "Flood",
+      "place": "Mandi",
+      "lat": 31.7087,
+      "lng": 76.932,
+      "severity": "High",
+      "status": "Corroborated",
+      "report_ids": [
+        "REP-9001",
+        "REP-9002",
+        "REP-9003",
+        "REP-9004"
+      ],
+      "report_count": 14,
+      "grouping_reason": "Grouped due to same place 'Mandi' and time window 30 mins (same type: Flood, close in time)",
+      "updated_at": "2026-11-03T22:42:00+05:30",
+      "summary": "AI Suggested Assessment (Corroborated — Awaiting Human Confirmation): 14 field reports indicate rapid water rise along the Beas River and Suketi Khad confluence near Panchvaktra Temple, Victoria Bridge, and Mandi Bus Stand. Multiple low-lying commercial pockets report water ingress and stranded vehicles."
+    },
+    {
+      "incident_id": "INC-102",
+      "type": "Landslide",
+      "place": "Jogindarnagar",
+      "lat": 31.9912,
+      "lng": 76.7899,
+      "severity": "High",
+      "status": "Corroborated",
+      "report_ids": [
+        "REP-9005",
+        "REP-9006",
+        "REP-9007"
+      ],
+      "report_count": 9,
+      "grouping_reason": "Grouped due to same place 'Jogindarnagar' and time window 30 mins (same type: Landslide, close in time)",
+      "updated_at": "2026-11-03T22:35:00+05:30",
+      "summary": "AI Suggested Assessment (Corroborated — Awaiting Human Confirmation): 9 reports describe slope failure and boulder fall near Kotropi and the railway crossing on the Jogindarnagar-Mandi corridor, accompanied by damaged power lines."
+    },
+    {
+      "incident_id": "INC-103",
+      "type": "Blocked Road",
+      "place": "Pandoh",
+      "lat": 31.67,
+      "lng": 77.05,
+      "severity": "Medium",
+      "status": "Corroborated",
+      "report_ids": [
+        "REP-9008",
+        "REP-9009"
+      ],
+      "report_count": 6,
+      "grouping_reason": "Grouped due to same place 'Pandoh' and time window 30 mins (same type: Blocked Road, close in time)",
+      "updated_at": "2026-11-03T22:18:00+05:30",
+      "summary": "AI Suggested Assessment (Corroborated — Awaiting Human Confirmation): 6 reports indicate rockfall and partial road subsidence along NH-21 near Pandoh Dam and Kainchi Mor, halting heavy goods and passenger traffic."
+    },
+    {
+      "incident_id": "INC-104",
+      "type": "Flood",
+      "place": "Kullu",
+      "lat": 31.9592,
+      "lng": 77.1089,
+      "severity": "High",
+      "status": "Confirmed",
+      "report_ids": [
+        "REP-9010",
+        "REP-9011"
+      ],
+      "report_count": 11,
+      "grouping_reason": "Grouped due to same place 'Kullu' and time window 30 mins (same type: Flood, close in time)",
+      "updated_at": "2026-11-03T22:10:00+05:30",
+      "confirmed_by": "Duty Officer — Control Desk #2",
+      "summary": "Human Operator Confirmed Status: 11 reports corroborate high discharge in Sarvari Khad and bank erosion under Akhara Bazaar bridge in Kullu. Preventative evacuation of riverside camps is underway."
+    },
+    {
+      "incident_id": "INC-105",
+      "type": "Blocked Road",
+      "place": "Aut",
+      "lat": 31.7456,
+      "lng": 77.2078,
+      "severity": "Medium",
+      "status": "Unverified",
+      "report_ids": [
+        "REP-9012",
+        "REP-9013"
+      ],
+      "report_count": 4,
+      "grouping_reason": "Grouped due to same place 'Aut' and time window 30 mins (same type: Blocked Road, close in time)",
+      "updated_at": "2026-11-03T21:48:00+05:30",
+      "summary": "AI Suggested Assessment (Unverified — Awaiting Human Confirmation): 4 reports mention debris accumulation outside the north portal of Aut Tunnel delaying inter-district buses."
+    },
+    {
+      "incident_id": "INC-106",
+      "type": "Landslide",
+      "place": "Manali",
+      "lat": 32.2432,
+      "lng": 77.1892,
+      "severity": "High",
+      "status": "Corroborated",
+      "report_ids": [
+        "REP-9014",
+        "REP-9015"
+      ],
+      "report_count": 8,
+      "grouping_reason": "Grouped due to same place 'Manali' and time window 30 mins (same type: Landslide, close in time)",
+      "updated_at": "2026-11-03T21:30:00+05:30",
+      "summary": "AI Suggested Assessment (Corroborated — Awaiting Human Confirmation): 8 reports highlight toe erosion by the Beas River near Aloo Ground and fallen deodar trees along the Manali Left Bank route."
+    },
+    {
+      "incident_id": "INC-107",
+      "type": "Landslide",
+      "place": "Shimla",
+      "lat": 31.1048,
+      "lng": 77.1734,
+      "severity": "Medium",
+      "status": "Confirmed",
+      "report_ids": [
+        "REP-9016",
+        "REP-9017"
+      ],
+      "report_count": 5,
+      "grouping_reason": "Grouped due to same place 'Shimla' and time window 30 mins (same type: Landslide, close in time)",
+      "updated_at": "2026-11-03T21:05:00+05:30",
+      "confirmed_by": "Duty Officer — Control Desk #1",
+      "summary": "Human Operator Confirmed Status: 5 reports verified retaining wall failure in the Summerhill-Boileauganj belt and debris restricting Cart Road to single-lane movement."
+    },
+    {
+      "incident_id": "INC-108",
+      "type": "Landslide",
+      "place": "Dharamshala",
+      "lat": 32.219,
+      "lng": 76.3234,
+      "severity": "Medium",
+      "status": "Unverified",
+      "report_ids": [
+        "REP-9018"
+      ],
+      "report_count": 3,
+      "grouping_reason": "Grouped due to same place 'Dharamshala' and time window 30 mins (same type: Landslide, close in time)",
+      "updated_at": "2026-11-03T20:40:00+05:30",
+      "summary": "AI Suggested Assessment (Unverified — Awaiting Human Confirmation): 3 reports indicate mudslide obstruction on the Khara Danda link road between Dharamshala and McLeodganj."
+    },
+    {
+      "incident_id": "INC-109",
+      "type": "Blocked Road",
+      "place": "Chamba",
+      "lat": 32.5534,
+      "lng": 76.1258,
+      "severity": "Low",
+      "status": "Unverified",
+      "report_ids": [
+        "REP-9019"
+      ],
+      "report_count": 2,
+      "grouping_reason": "Grouped due to same place 'Chamba' and time window 30 mins (same type: Blocked Road, close in time)",
+      "updated_at": "2026-11-03T20:25:00+05:30",
+      "summary": "AI Suggested Assessment (Unverified — Awaiting Human Confirmation): 2 reports note intermittent rockfall along the Chamba-Bharmour stretch near Bagheigarh."
+    },
+    {
+      "incident_id": "INC-110",
+      "type": "Landslide",
+      "place": "Reckong Peo",
+      "lat": 31.5404,
+      "lng": 78.2721,
+      "severity": "High",
+      "status": "Corroborated",
+      "report_ids": [
+        "REP-9020"
+      ],
+      "report_count": 7,
+      "grouping_reason": "Grouped due to same place 'Reckong Peo' and time window 30 mins (same type: Landslide, close in time)",
+      "updated_at": "2026-11-03T20:12:00+05:30",
+      "summary": "AI Suggested Assessment (Corroborated — Awaiting Human Confirmation): 7 field reports indicate active shooting stones and slope instability along the Nigulsari NH-5 sector near Reckong Peo."
+    },
+    {
+      "incident_id": "INC-111",
+      "type": "Blocked Road",
+      "place": "Solan",
+      "lat": 30.9045,
+      "lng": 77.0967,
+      "severity": "Low",
+      "status": "Confirmed",
+      "report_ids": [
+        "REP-9021"
+      ],
+      "report_count": 4,
+      "grouping_reason": "Grouped due to same place 'Solan' and time window 30 mins (same type: Blocked Road, close in time)",
+      "updated_at": "2026-11-03T19:55:00+05:30",
+      "confirmed_by": "Duty Officer — Control Desk #1",
+      "summary": "Human Operator Confirmed Status: 4 reports verified minor debris near Chakki Mor in Solan; regulated single-lane movement is active."
+    },
+    {
+      "incident_id": "INC-112",
+      "type": "Flood",
+      "place": "Bilaspur",
+      "lat": 31.3396,
+      "lng": 76.7607,
+      "severity": "Low",
+      "status": "Unverified",
+      "report_ids": [
+        "REP-9022"
+      ],
+      "report_count": 2,
+      "grouping_reason": "Grouped due to same place 'Bilaspur' and time window 30 mins (same type: Flood, close in time)",
+      "updated_at": "2026-11-03T19:40:00+05:30",
+      "summary": "AI Suggested Assessment (Unverified — Awaiting Human Confirmation): 2 reports mention elevated water level along Gobind Sagar shore in Bilaspur."
+    },
+    {
+      "incident_id": "INC-113",
+      "type": "Blocked Road",
+      "place": "Hamirpur",
+      "lat": 31.6862,
+      "lng": 76.5213,
+      "severity": "Low",
+      "status": "Unverified",
+      "report_ids": [
+        "REP-9023"
+      ],
+      "report_count": 2,
+      "grouping_reason": "Grouped due to same place 'Hamirpur' and time window 30 mins (same type: Blocked Road, close in time)",
+      "updated_at": "2026-11-03T19:20:00+05:30",
+      "summary": "AI Suggested Assessment (Unverified — Awaiting Human Confirmation): 2 reports describe stream water and slush obstructing light vehicles on the Hamirpur-Sujanpur road."
+    },
+    {
+      "incident_id": "INC-114",
+      "type": "Flood",
+      "place": "Rampur Bushahr",
+      "lat": 31.4492,
+      "lng": 77.632,
+      "severity": "Medium",
+      "status": "Corroborated",
+      "report_ids": [
+        "REP-9024"
+      ],
+      "report_count": 5,
+      "grouping_reason": "Grouped due to same place 'Rampur Bushahr' and time window 30 mins (same type: Flood, close in time)",
+      "updated_at": "2026-11-03T19:05:00+05:30",
+      "summary": "AI Suggested Assessment (Corroborated — Awaiting Human Confirmation): 5 reports note high-velocity turbid discharge in Samej Khad and Sutlej river near Rampur Bushahr."
+    },
+    {
+      "incident_id": "INC-115",
+      "type": "Blocked Road",
+      "place": "Keylong",
+      "lat": 32.5711,
+      "lng": 77.032,
+      "severity": "Low",
+      "status": "Unverified",
+      "report_ids": [
+        "REP-9025"
+      ],
+      "report_count": 2,
+      "grouping_reason": "Grouped due to same place 'Keylong' and time window 30 mins (same type: Blocked Road, close in time)",
+      "updated_at": "2026-11-03T18:50:00+05:30",
+      "summary": "AI Suggested Assessment (Unverified — Awaiting Human Confirmation): 2 reports indicate flash stream debris temporarily halting traffic between Keylong and Darcha."
+    }
+  ],
+  "brief": {
+    "title": "Situation Brief",
+    "status": "Draft, needs review",
+    "generated_at": "2026-11-03T22:50:00+05:30",
+    "text": "AI Suggested Situation Synthesis (Status: Draft, needs review): Across 15 monitored Himachal Pradesh sectors, 84 field reports have been clustered into 15 distinct incident candidates. High-priority clusters requiring human verification are concentrated in the Beas basin (Mandi riverfront surge with 14 reports, Jogindarnagar-Kotropi slope failure with 9 reports, and Manali Aloo Ground erosion with 8 reports) and Kinnaur (Reckong Peo Nigulsari sector with 7 reports). NH-21 corridor connectivity is degraded at Pandoh and Aut Tunnel. Only 3 incidents (Kullu, Shimla, Solan) have been confirmed by human duty officers; 12 AI-suggested clusters remain awaiting human operator confirmation before field dispatch."
+  }
+}

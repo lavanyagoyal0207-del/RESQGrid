@@ -645,6 +645,7 @@ export default function PhaseFourDashboard({
   onReportUpdated,
   isGeneratingBrief,
   isApprovingBrief,
+  apiMode = 'connecting',
 }) {
   const [section, setSection] = useState('intelligence');
   const reportCount = useMemo(() => reports.length, [reports]);
@@ -656,14 +657,18 @@ export default function PhaseFourDashboard({
   ];
 
   return (
-    <main className="relative z-20 mx-auto flex w-full max-w-[1680px] flex-1 flex-col gap-4 p-4 lg:p-5">
+    <main className="rq-phase-four-page relative z-20 mx-auto flex w-full max-w-[1680px] flex-1 flex-col gap-4 p-4 lg:p-5">
       <section className={PANEL}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#FF6B35]">Phase 4 · Decision support</p>
             <h1 className="mt-1 font-display text-xl font-bold text-white">Operational Intelligence</h1>
-            <p className="mt-1 text-xs text-purple-200/70">
-              {reportCount} stored reports · {incidents.length} stored incidents · {resources.length} resource records
+            <p className="mt-1 text-xs text-purple-200/70" role={apiMode === 'offline' ? 'status' : undefined}>
+              {apiMode === 'offline'
+                ? 'API unavailable · no live records loaded'
+                : apiMode === 'connecting'
+                  ? 'Connecting to the live API…'
+                  : `${reportCount} stored reports · ${incidents.length} stored incidents · ${resources.length} resource records`}
             </p>
           </div>
           <nav aria-label="Operational intelligence sections" className="flex flex-wrap gap-2">

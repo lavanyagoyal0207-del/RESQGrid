@@ -50,6 +50,12 @@ describe('IncidentList', () => {
     expect(screen.getByText('No incidents match current filter')).toBeInTheDocument();
   });
 
+  it('distinguishes unavailable incident data from an empty filtered result', () => {
+    renderList({ incidents: [], isDataAvailable: false });
+    expect(screen.getByText('Incident data unavailable')).toBeInTheDocument();
+    expect(screen.getByText(/No live incident records were loaded/)).toBeInTheDocument();
+  });
+
   it('forwards search text changes', () => {
     const props = renderList();
     fireEvent.change(

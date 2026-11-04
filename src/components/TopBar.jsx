@@ -6,6 +6,7 @@ import {
   Home,
   LogOut,
   Map,
+  Moon,
   Radio,
   ShieldCheck,
   UsersRound,
@@ -13,8 +14,7 @@ import {
 
 const CONNECTION = {
   'flask-api': { label: 'Live connection', dot: 'bg-emerald-400', tone: 'text-emerald-200' },
-  offline: { label: 'Offline · last snapshot', dot: 'bg-amber-400', tone: 'text-amber-200' },
-  'mock-json': { label: 'Preview · API unavailable', dot: 'bg-amber-400', tone: 'text-amber-200' },
+  offline: { label: 'API unavailable', dot: 'bg-amber-400', tone: 'text-amber-200' },
   connecting: { label: 'Connecting', dot: 'bg-sky-300', tone: 'text-sky-200' },
 };
 
@@ -42,7 +42,9 @@ export default function TopBar({
   role,
   onLogout,
 }) {
-  const connection = CONNECTION[apiMode] || CONNECTION.connecting;
+  const connection = apiMode === 'offline' && lastSyncAt
+    ? { ...CONNECTION.offline, label: 'Offline · last snapshot' }
+    : CONNECTION[apiMode] || CONNECTION.connecting;
   const activeNav = activeView === 'submit-page' ? 'submit-page' : activeView;
 
   return (
@@ -54,10 +56,10 @@ export default function TopBar({
           onClick={() => onSelectView('home')}
           aria-label="ResQGrid home"
         >
-          <span className="rq-brand-mark"><ShieldCheck size={19} /></span>
+          <span className="rq-brand-mark"><Moon size={19} strokeWidth={1.7} /></span>
           <span className="rq-brand-copy">
             <span className="rq-brand-name">ResQ<span>Grid</span></span>
-            <span className="rq-brand-tagline">Emergency intelligence</span>
+            <span className="rq-brand-tagline">Halloween Night Watch</span>
           </span>
         </button>
 
@@ -83,8 +85,9 @@ export default function TopBar({
 
         <div className="rq-header-actions">
           <span
-            className={`rq-connection ${connection.tone}`}
+            className={`rq-connection ${connection.tone} is-${apiMode}`}
             role="status"
+            aria-label={`System status: ${connection.label}`}
             title={apiError || (lastSyncAt ? `Last successful sync: ${new Date(lastSyncAt).toLocaleString()}` : '')}
           >
             <span className={`h-2 w-2 rounded-full ${connection.dot} ${apiMode === 'flask-api' ? 'animate-pulse' : ''}`} />

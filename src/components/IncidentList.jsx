@@ -9,6 +9,7 @@ export default function IncidentList({
   onStatusFilterChange,
   searchQuery,
   onSearchQueryChange,
+  isDataAvailable = true,
 }) {
   return (
     <div className="rq-incident-queue flex flex-col h-full rounded-2xl border overflow-hidden">
@@ -63,10 +64,12 @@ export default function IncidentList({
         {incidents.length === 0 ? (
           <div className="rounded-xl bg-[#2D1B4E]/40 border border-purple-300/15 p-6 text-center">
             <p className="font-display text-sm font-semibold text-white">
-              No incidents match current filter
+              {isDataAvailable ? 'No incidents match current filter' : 'Incident data unavailable'}
             </p>
             <p className="text-xs text-purple-200/70 mt-1">
-              Reset status or severity filters to inspect all Himachal Pradesh sectors.
+              {isDataAvailable
+                ? 'Reset status or severity filters to inspect all Himachal Pradesh sectors.'
+                : 'No live incident records were loaded. Check the API connection and operator access, then refresh.'}
             </p>
           </div>
         ) : (

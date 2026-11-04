@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import mockData from './data/mockData.json';
 
 import {
   fetchIncidentsData,
@@ -48,26 +47,16 @@ function OverviewSkeleton() {
 }
 
 export default function App() {
-  const [incidents, setIncidents] = useState(() =>
-    structuredClone(mockData.incidents)
-  );
-
-  const [reports, setReports] = useState(() =>
-    structuredClone(mockData.reports)
-  );
-
-  const [places, setPlaces] = useState(() =>
-    structuredClone(mockData.places)
-  );
+  const [incidents, setIncidents] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [places, setPlaces] = useState([]);
   const [resources, setResources] = useState([]);
   const [riskAssessment, setRiskAssessment] = useState(null);
   const [incomingReportIds, setIncomingReportIds] = useState([]);
 
-  const [brief, setBrief] = useState(() =>
-    structuredClone(mockData.brief)
-  );
+  const [brief, setBrief] = useState(null);
 
-  const [selectedIncidentId, setSelectedIncidentId] = useState('INC-101');
+  const [selectedIncidentId, setSelectedIncidentId] = useState(null);
   const [severityFilter, setSeverityFilter] = useState('ALL');
   const [mapTypeFilter, setMapTypeFilter] = useState('ALL');
   const [mapVerificationFilter, setMapVerificationFilter] = useState('ALL');
@@ -109,11 +98,7 @@ export default function App() {
       const snapshot = await fetchIncidentsData(credentials);
       if (snapshot.source !== 'flask-api') {
         setApiError(snapshot.error || 'Backend is unavailable.');
-        setApiMode((current) =>
-          current === 'flask-api' || current === 'offline'
-            ? 'offline'
-            : 'mock-json'
-        );
+        setApiMode('offline');
         return snapshot;
       }
 
@@ -144,11 +129,7 @@ export default function App() {
       return snapshot;
     } catch (error) {
       setApiError(error.message || 'Backend is unavailable.');
-      setApiMode((current) =>
-        current === 'flask-api' || current === 'offline'
-          ? 'offline'
-          : 'mock-json'
-      );
+      setApiMode('offline');
       return { source: 'unavailable', error: error.message };
     } finally {
       dashboardRequestInFlight.current = false;
@@ -167,7 +148,7 @@ export default function App() {
     } else {
       triggerToast(
         'Backend Unavailable',
-        'Showing clearly labelled fallback data; no live refresh completed.',
+        'No live refresh completed. Previously loaded records are retained, if available.',
         'orange'
       );
     }
@@ -240,6 +221,7 @@ export default function App() {
 
   // Dashboard counters
   const incidentCount = activeIncidents.length;
+  const hasOperationalData = apiMode === 'flask-api' || Boolean(lastSyncAt);
 
   const reportCount = reports.length;
   const awaitingReviewCount = reports.filter(
@@ -622,6 +604,7 @@ export default function App() {
       onStatusFilterChange={setStatusFilter}
       searchQuery={searchQuery}
       onSearchQueryChange={setSearchQuery}
+      isDataAvailable={hasOperationalData}
     />
   );
 
@@ -646,7 +629,7 @@ export default function App() {
 
   return (
     <div className={`rq-app-shell ${activeView === 'home' ? 'is-home' : ''}`}>
-      <FogOverlay />
+      <FogOverlay isOperational={activeView !== 'home'} />
 
       {activeView === 'home' ? (
         <LandingPage
@@ -657,9 +640,9 @@ export default function App() {
       ) : (
         <>
           <TopBar
-            incidentCount={apiMode === 'connecting' ? null : incidentCount}
-            reportCount={apiMode === 'connecting' ? null : reportCount}
-            awaitingReviewCount={apiMode === 'connecting' ? null : awaitingReviewCount}
+            incidentCount={hasOperationalData ? incidentCount : null}
+            reportCount={hasOperationalData ? reportCount : null}
+            awaitingReviewCount={hasOperationalData ? awaitingReviewCount : null}
             activeView={activeView}
             onSelectView={setActiveView}
             onOpenSubmitModal={() => setIsSubmitModalOpen(true)}
@@ -712,6 +695,7 @@ export default function App() {
             <>
               <div className="rq-page rq-access-wrap">{renderOperatorAccess()}</div>
               <PhaseFourDashboard
+                apiMode={apiMode}
                 incidents={apiMode === 'flask-api' ? incidents : []}
                 reports={apiMode === 'flask-api' ? reports : []}
                 resources={apiMode === 'flask-api' ? resources : []}
@@ -737,7 +721,7 @@ export default function App() {
               <div className="rq-page-heading">
                 <div>
                   <p className="rq-eyebrow">
-                    {activeView === 'control-room' ? 'LIVE OPERATIONS' : activeView === 'evidence' ? 'REVIEW WORKSPACE' : 'FIELD COORDINATION'}
+                    {activeView === 'control-room' ? 'OPERATIONS OVERVIEW' : activeView === 'evidence' ? 'REVIEW WORKSPACE' : 'FIELD COORDINATION'}
                   </p>
                   <h1>
                     {activeView === 'control-room' ? 'Situation overview' : activeView === 'evidence' ? 'Evidence & verification' : 'Response operations'}
@@ -750,16 +734,16 @@ export default function App() {
                         : 'Coordinate resources and review operational recommendations.'}
                   </p>
                 </div>
-                <div className="rq-sync-summary" role="status">
+                <div className="rq-sync-summary" role="status" title={apiError || undefined}>
                   <span className={`rq-sync-dot ${apiMode === 'flask-api' ? 'is-live' : ''}`} />
                   <span>
-                    {lastSyncAt
-                      ? `Updated ${new Date(lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                      : apiMode === 'mock-json'
-                        ? 'Preview data · API unavailable'
-                        : apiMode === 'offline'
-                          ? 'Offline · showing last snapshot'
-                          : 'Waiting for first sync'}
+                    {apiMode === 'offline'
+                      ? lastSyncAt
+                        ? `Offline · last sync ${new Date(lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                        : 'API unavailable · no live data loaded'
+                      : lastSyncAt
+                        ? `Updated ${new Date(lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                        : 'Waiting for first sync'}
                   </span>
                   {incomingReportIds.length > 0 && (
                     <span className="rq-new-reports">{incomingReportIds.length} new reports</span>
@@ -778,33 +762,33 @@ export default function App() {
                     <article className="rq-metric-card">
                       <span className="rq-metric-icon violet"><Activity size={17} /></span>
                       <span className="rq-metric-label">Active incidents</span>
-                      <strong>{incidentCount}</strong>
+                      <strong>{hasOperationalData ? incidentCount : '—'}</strong>
                       <small>Across monitored locations</small>
                     </article>
                     <article className="rq-metric-card">
                       <span className="rq-metric-icon critical"><AlertTriangle size={17} /></span>
                       <span className="rq-metric-label">Critical severity</span>
-                      <strong>{criticalIncidentCount}</strong>
+                      <strong>{hasOperationalData ? criticalIncidentCount : '—'}</strong>
                       <small>Requires operator attention</small>
                     </article>
                     <article className="rq-metric-card">
                       <span className="rq-metric-icon amber"><ShieldCheck size={17} /></span>
                       <span className="rq-metric-label">Unverified reports</span>
-                      <strong>{awaitingReviewCount}</strong>
+                      <strong>{hasOperationalData ? awaitingReviewCount : '—'}</strong>
                       <small>Require human review</small>
                     </article>
                     <article className="rq-metric-card">
                       <span className="rq-metric-icon green"><PackageCheck size={17} /></span>
                       <span className="rq-metric-label">Resources deployed</span>
-                      <strong>{deployedResourceCount}</strong>
-                      <small>{responseInProgressCount} responses underway</small>
+                      <strong>{hasOperationalData ? deployedResourceCount : '—'}</strong>
+                      <small>{hasOperationalData ? `${responseInProgressCount} responses underway` : 'Live status unavailable'}</small>
                     </article>
                   </section>
 
                   <section className="rq-severity-overview" aria-label="Incident severity distribution">
                     <div className="rq-severity-heading">
                       <div><p className="rq-eyebrow">SEVERITY PROFILE</p><h2>Current incident distribution</h2></div>
-                      <span>Stored incident labels</span>
+                      <span>{hasOperationalData ? 'Stored incident labels' : 'No live records loaded'}</span>
                     </div>
                     <div className="rq-severity-content">
                       <div className="rq-severity-stack" role="img" aria-label={severityDistribution.map(({ severity, count }) => `${severity}: ${count}`).join(', ')}>

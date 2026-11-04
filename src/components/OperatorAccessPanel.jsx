@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ArrowRight, LockKeyhole, ShieldCheck } from 'lucide-react';
 
 export default function OperatorAccessPanel({
   operator,
@@ -32,58 +33,70 @@ export default function OperatorAccessPanel({
   return (
     <section className="rq-operator-card rounded-xl border p-3 text-xs">
       {operator ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-purple-100">
-            Operator authenticated: <strong className="text-emerald-300">{operator}</strong>
-            <span className="ml-2 text-purple-200/80">Role: {role || 'operator'}</span>
-            <span className="ml-2 text-purple-300/70">Credentials remain in memory only.</span>
+        <div className="rq-operator-authenticated">
+          <div className="rq-operator-emblem is-authorized">
+            <ShieldCheck size={23} strokeWidth={1.7} />
           </div>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="rounded-lg border border-purple-300/30 px-3 py-1.5 text-purple-100 hover:text-white"
-          >
+          <div className="rq-operator-copy">
+            <span className="rq-operator-kicker">CONTROL ROOM ACCESS</span>
+            <div className="rq-operator-title">
+              Signed in as <strong>{operator}</strong>
+            </div>
+            <p>Role: {role || 'operator'} · Credentials remain in memory only.</p>
+          </div>
+          <button type="button" onClick={onLogout} className="button-secondary">
             Sign out
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
-          <div className="mr-auto">
-            <div className="font-semibold text-white">Operator sign-in required</div>
-            <p className="text-[11px] text-purple-200/70">
-              Sign in to verify reports, approve briefs, or listen to private audio.
-            </p>
+        <form onSubmit={handleSubmit} className="rq-operator-form">
+          <div className="rq-operator-intro">
+            <span className="rq-operator-emblem" aria-hidden="true">
+              <LockKeyhole size={22} strokeWidth={1.7} />
+            </span>
+            <div className="rq-operator-copy">
+              <span className="rq-operator-kicker">AUTHORIZED PERSONNEL</span>
+              <h2>Operator sign-in required</h2>
+              <p>
+                Verify reports, approve briefs, and access private evidence.
+                Operational data stays protected.
+              </p>
+            </div>
           </div>
-          <label className="flex flex-col gap-1 text-purple-200">
-            Username
-            <input
-              autoComplete="username"
-              required
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              className="rounded-lg bg-[#120721] border border-purple-300/30 px-2.5 py-1.5 text-white"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-purple-200">
-            Password
-            <input
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="rounded-lg bg-[#120721] border border-purple-300/30 px-2.5 py-1.5 text-white"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded-lg bg-[#FF6B35] px-3 py-1.5 font-semibold text-white disabled:opacity-60"
-          >
-            {isSubmitting ? 'Signing in...' : 'Sign in'}
-          </button>
+
+          <div className="rq-operator-fields">
+            <label>
+              <span>Username</span>
+              <input
+                autoComplete="username"
+                required
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="Enter your operator ID"
+              />
+            </label>
+            <label>
+              <span>Password</span>
+              <input
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter your password"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="rq-operator-submit"
+            >
+              {isSubmitting ? 'Signing in...' : 'Sign in'}
+              {!isSubmitting && <ArrowRight size={16} aria-hidden="true" />}
+            </button>
+          </div>
           {errorMessage && (
-            <p role="alert" className="basis-full text-red-300">{errorMessage}</p>
+            <p role="alert" className="rq-operator-error">{errorMessage}</p>
           )}
         </form>
       )}

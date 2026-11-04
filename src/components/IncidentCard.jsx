@@ -4,17 +4,19 @@ const SEVERITY_BADGE = {
   Critical: 'bg-red-500/15 text-red-200 border-red-400/45',
   High: 'bg-orange-500/15 text-orange-200 border-orange-400/40',
   Medium: 'bg-amber-500/15 text-amber-200 border-amber-400/40',
-  Low: 'bg-emerald-500/12 text-emerald-200 border-emerald-400/35',
+  Low: 'bg-purple-400/10 text-purple-100 border-purple-300/30',
 };
 
 const STATUS_BADGE = {
   Unverified: 'bg-slate-600/35 text-slate-200 border-slate-400/40',
   Corroborated: 'bg-sky-500/25 text-sky-200 border-sky-400/50',
   Confirmed: 'bg-emerald-500/25 text-emerald-200 border-emerald-400/50',
+  Rejected: 'bg-rose-500/15 text-rose-200 border-rose-400/40',
 };
 
 export default function IncidentCard({ incident, isSelected, onClick }) {
   const isAwaitingReview = incident.status !== 'Confirmed' && incident.status !== 'Rejected';
+  const severityKey = String(incident.severity || 'low').toLowerCase();
 
   const formatTime = (iso) => {
     try {
@@ -38,7 +40,7 @@ export default function IncidentCard({ incident, isSelected, onClick }) {
       {/* Top Row: "14 reports -> 1 incident" + Awaiting Review Orange Dot */}
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="inline-flex items-center gap-1.5 rounded-md bg-[#1a0b2e]/90 border border-purple-300/20 px-2.5 py-1">
-          <span className="font-display text-xs font-bold text-[#FF6B35] tabular-nums">
+          <span className="font-display text-xs font-bold text-[#FFB347] tabular-nums">
             {incident.report_count} reports
           </span>
           <span className="font-mono text-xs font-bold text-purple-300">-&gt;</span>
@@ -46,7 +48,7 @@ export default function IncidentCard({ incident, isSelected, onClick }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-mono text-purple-200/70">
+          <span className="text-xs font-mono text-purple-200/80">
             {formatTime(incident.updated_at)}
           </span>
 
@@ -56,8 +58,8 @@ export default function IncidentCard({ incident, isSelected, onClick }) {
               className="flex items-center gap-1.5 rounded-full bg-[#FF6B35]/15 border border-[#FF6B35]/40 px-2 py-0.5"
               title="Awaiting Human Review — AI Suggestion Only"
             >
-              <span className="h-2 w-2 rounded-full bg-[#FF6B35] shadow-[0_0_8px_#FF6B35] animate-pulse" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#FF6B35]">
+              <span className="h-2 w-2 rounded-full bg-[#FF9A52] shadow-[0_0_8px_rgba(255,117,24,0.65)]" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[#FFC083]">
                 Review
               </span>
             </span>
@@ -77,12 +79,12 @@ export default function IncidentCard({ incident, isSelected, onClick }) {
               {incident.place}
             </span>
           </div>
-          <p className="text-[11px] text-purple-200/70 line-clamp-1 mt-0.5">
+          <p className="text-xs text-purple-200/80 line-clamp-1 mt-0.5">
             {incident.grouping_reason}
           </p>
         </div>
 
-        <span className="text-[10px] font-mono text-purple-300/60 shrink-0">
+        <span className="text-[11px] font-mono text-purple-200/70 shrink-0">
           {incident.incident_id}
         </span>
       </div>
@@ -95,7 +97,8 @@ export default function IncidentCard({ incident, isSelected, onClick }) {
               SEVERITY_BADGE[incident.severity] || SEVERITY_BADGE.Low
             }`}
           >
-            <span>Severity: {incident.severity}</span>
+            <span className={`rq-severity-indicator severity-${severityKey}`} aria-hidden="true" />
+            <span>Severity: {incident.severity || 'Unknown'}</span>
           </span>
 
           <span

@@ -3,9 +3,9 @@ import L from 'leaflet';
 
 const SEVERITY_STYLES = {
   Critical: { color: '#ef6464', size: 15 },
-  High: { color: '#ef8b4d', size: 13 },
-  Medium: { color: '#e7b963', size: 11 },
-  Low: { color: '#70b895', size: 9 },
+  High: { color: '#ff7518', size: 13 },
+  Medium: { color: '#ffb347', size: 11 },
+  Low: { color: '#b89ad4', size: 9 },
 };
 
 function isValidCoordinate(lat, lng) {
@@ -91,6 +91,7 @@ export default function DarkMap({
 
     places.filter((place) => isValidCoordinate(place.lat, place.lng)).forEach((place) => {
       const marker = L.circleMarker([Number(place.lat), Number(place.lng)], {
+        className: 'rq-map-place',
         radius: 5,
         color: '#c4b5fd',
         weight: 1.5,
@@ -154,7 +155,9 @@ export default function DarkMap({
         linkedReports.length
       );
       const selected = incident.incident_id === selectedIncidentId;
+      const severityKey = String(incident.severity || 'low').toLowerCase();
       const marker = L.circleMarker([Number(incident.lat), Number(incident.lng)], {
+        className: `rq-map-marker severity-${severityKey}${selected ? ' is-selected' : ''}`,
         radius: severity.size + (selected ? 3 : 0),
         color: selected
           ? '#ffffff'
@@ -219,47 +222,47 @@ export default function DarkMap({
   };
 
   return (
-    <div className="relative flex h-full min-h-[420px] w-full flex-col overflow-hidden rounded-2xl border border-purple-400/20 bg-[#120721] shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
+    <div className="rq-map-panel relative flex h-full min-h-[420px] w-full flex-col overflow-hidden rounded-2xl border border-purple-400/20 bg-[#120721] shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
       <div className="pointer-events-none absolute left-3 right-3 top-3 z-[400] flex flex-wrap items-start justify-between gap-2">
-        <div className="pointer-events-auto rounded-xl border border-purple-400/25 bg-[#1a0b2e]/95 px-3 py-2 shadow-lg">
-          <h2 className="font-display text-xs font-bold uppercase tracking-wider text-white">
+        <div className="rq-map-overlay-card pointer-events-auto rounded-xl border border-purple-400/25 bg-[#1a0b2e]/95 px-3 py-2 shadow-lg">
+          <h2 className="font-display text-sm font-bold uppercase tracking-wider text-white">
             Himachal Pradesh · {places.length} fixed locations
           </h2>
-          <p className="text-[10px] text-purple-200/75">
+          <p className="text-xs text-purple-100/85">
             Incident markers use stored coordinates; dotted outline indicates unverified
           </p>
         </div>
 
-        <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-purple-400/25 bg-[#1a0b2e]/95 p-2 shadow-lg">
-          <label className="text-[10px] text-purple-200">
+        <div className="rq-map-overlay-card pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-purple-400/25 bg-[#1a0b2e]/95 p-2 shadow-lg">
+          <label className="text-xs text-purple-100">
             Severity
             <select
               value={severityFilter}
               onChange={(event) => onSeverityFilterChange(event.target.value)}
-              className="ml-1 rounded bg-[#120721] px-1.5 py-1 text-[10px] text-white"
+              className="ml-1 rounded bg-[#120721] px-1.5 py-1 text-xs text-white"
             >
               {['ALL', 'Critical', 'High', 'Medium', 'Low'].map((value) => (
                 <option key={value} value={value}>{value === 'ALL' ? 'All' : value}</option>
               ))}
             </select>
           </label>
-          <label className="text-[10px] text-purple-200">
+          <label className="text-xs text-purple-100">
             Type
             <select
               value={typeFilter}
               onChange={(event) => onTypeFilterChange(event.target.value)}
-              className="ml-1 max-w-28 rounded bg-[#120721] px-1.5 py-1 text-[10px] text-white"
+              className="ml-1 max-w-28 rounded bg-[#120721] px-1.5 py-1 text-xs text-white"
             >
               <option value="ALL">All</option>
               {incidentTypes.map((type) => <option key={type}>{type}</option>)}
             </select>
           </label>
-          <label className="text-[10px] text-purple-200">
+          <label className="text-xs text-purple-100">
             Verification
             <select
               value={verificationFilter}
               onChange={(event) => onVerificationFilterChange(event.target.value)}
-              className="ml-1 rounded bg-[#120721] px-1.5 py-1 text-[10px] text-white"
+              className="ml-1 rounded bg-[#120721] px-1.5 py-1 text-xs text-white"
             >
               {['ALL', 'Confirmed', 'Corroborated', 'Unverified', 'Rejected'].map((value) => (
                 <option key={value}>{value}</option>
@@ -269,7 +272,7 @@ export default function DarkMap({
           <button
             type="button"
             onClick={handleResetView}
-            className="rounded-lg border border-purple-300/20 bg-[#2D1B4E]/80 px-2 py-1 text-[10px] text-purple-100"
+            className="rounded-lg border border-purple-300/20 bg-[#2D1B4E]/80 px-2 py-1 text-xs text-purple-50"
           >
             Reset
           </button>
@@ -278,8 +281,8 @@ export default function DarkMap({
 
       <div ref={mapContainerRef} className="z-10 min-h-[420px] w-full flex-1" />
 
-      <div className="relative z-[400] flex flex-wrap items-center justify-between gap-2 border-t border-purple-400/20 bg-[#1a0b2e]/95 px-4 py-2.5 text-[10px]">
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-purple-100">
+      <div className="rq-map-legend relative z-[400] flex flex-wrap items-center justify-between gap-2 border-t border-purple-400/20 bg-[#1a0b2e]/95 px-4 py-2.5 text-xs">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-purple-50">
           {Object.entries(SEVERITY_STYLES).map(([name, style]) => (
             <span key={name} className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: style.color }} />

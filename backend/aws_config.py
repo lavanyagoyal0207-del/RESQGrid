@@ -21,6 +21,12 @@ dynamodb = boto3.resource(
 
 table = dynamodb.Table(TABLE_NAME)
 
+dynamodb_client = boto3.client(
+    "dynamodb",
+    region_name=REGION,
+    config=AWS_CLIENT_CONFIG,
+)
+
 s3 = boto3.client(
     "s3",
     region_name=REGION,

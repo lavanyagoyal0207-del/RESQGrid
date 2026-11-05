@@ -16,7 +16,7 @@ from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash
-from aws_config import table, s3, BUCKET_NAME
+from aws_config import table, s3, BUCKET_NAME, dynamodb_client
 from intelligence import (
     compare_reports,
     detect_emerging_patterns,
@@ -541,7 +541,7 @@ def associate_report_with_incident(report, is_existing=False, items=None):
         put_item.get("SK")
     )
     try:
-        table.meta.client.transact_write_items(
+        dynamodb_client.transact_write_items(
             TransactItems=[report_operation, incident_operation]
         )
     except ClientError as error:

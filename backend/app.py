@@ -10,6 +10,7 @@ from decimal import Decimal
 from threading import Lock
 
 from boto3.dynamodb.types import TypeSerializer
+from botocore.exceptions import ClientError
 from faster_whisper import WhisperModel
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
@@ -529,9 +530,19 @@ def associate_report_with_incident(report, is_existing=False, items=None):
         }
 
     report_operation = make_report_operation(report, is_existing)
-    table.meta.client.transact_write_items(
-        TransactItems=[report_operation, incident_operation]
-    )
+    try:
+        table.meta.client.transact_write_items(
+            TransactItems=[report_operation, incident_operation]
+        )
+    except ClientError as error:
+        first_operation_type = next(iter(report_operation))
+        app.logger.error(
+            "DynamoDB report/incident transaction failed; "
+            "first operation=%s; response=%r",
+            first_operation_type,
+            error.response,
+        )
+        raise
 
     if matching_incidents:
         for report_id in incident.get("report_ids", []):

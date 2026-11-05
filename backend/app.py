@@ -530,6 +530,16 @@ def associate_report_with_incident(report, is_existing=False, items=None):
         }
 
     report_operation = make_report_operation(report, is_existing)
+    put_item = report_operation.get("Put", {}).get("Item", {})
+
+    app.logger.error(
+        "REPORT KEY DIAGNOSTIC: report_id=%r, report_PK=%r, report_SK=%r, serialized_PK=%r, serialized_SK=%r",
+        report.get("report_id"),
+        report.get("PK"),
+        report.get("SK"),
+        put_item.get("PK"),
+        put_item.get("SK")
+    )
     try:
         table.meta.client.transact_write_items(
             TransactItems=[report_operation, incident_operation]

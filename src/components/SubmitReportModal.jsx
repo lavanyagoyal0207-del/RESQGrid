@@ -36,6 +36,24 @@ const VOICE_SAMPLES = [
   },
 ];
 
+const DEFAULT_PLACES = [
+  { place: 'Mandi', district: 'Mandi' },
+  { place: 'Jogindarnagar', district: 'Mandi' },
+  { place: 'Kullu', district: 'Kullu' },
+  { place: 'Manali', district: 'Kullu' },
+  { place: 'Shimla', district: 'Shimla' },
+  { place: 'Dharamshala', district: 'Kangra' },
+  { place: 'Pandoh', district: 'Mandi' },
+  { place: 'Aut', district: 'Mandi' },
+  { place: 'Chamba', district: 'Chamba' },
+  { place: 'Bilaspur', district: 'Bilaspur' },
+  { place: 'Hamirpur', district: 'Hamirpur' },
+  { place: 'Solan', district: 'Solan' },
+  { place: 'Rampur Bushahr', district: 'Shimla' },
+  { place: 'Reckong Peo', district: 'Kinnaur' },
+  { place: 'Keylong', district: 'Lahaul & Spiti' },
+];
+
 export default function SubmitReportModal({
   isOpen,
   onClose,
@@ -44,8 +62,9 @@ export default function SubmitReportModal({
   onSubmitVoiceReport,
   isStandalonePage = false,
 }) {
+  const availablePlaces = places && places.length > 0 ? places : DEFAULT_PLACES;
   const [originalText, setOriginalText] = useState('');
-  const [place, setPlace] = useState('Mandi');
+  const [place, setPlace] = useState(() => availablePlaces[0]?.place || 'Mandi');
   const [type, setType] = useState('Flood');
   const [severity, setSeverity] = useState('High');
   const [voiceFileName, setVoiceFileName] = useState('');
@@ -82,7 +101,7 @@ export default function SubmitReportModal({
     setAudioFile(null);
     setVoiceReport(null);
     setDemoSampleSelected(false);
-    setPlace(places[0]?.place || 'Mandi');
+    setPlace(availablePlaces[0]?.place || 'Mandi');
     setType('Flood');
     setSeverity('High');
     setIdempotencyKey(createSubmissionId());
@@ -202,9 +221,27 @@ export default function SubmitReportModal({
       }
     }
 
+    if (!place || !place.trim()) {
+      setSubmitSuccess({
+        message: 'Please select a valid Himachal sector/location.',
+        endpoint: 'Validation Error',
+        error: true,
+      });
+      return;
+    }
+
     if (!originalText.trim()) {
       setSubmitSuccess({
         message: 'Please describe the incident or select an audio file.',
+        endpoint: 'Validation Error',
+        error: true,
+      });
+      return;
+    }
+
+    if (originalText.trim().length > 5000) {
+      setSubmitSuccess({
+        message: 'Report text must be 5000 characters or fewer.',
         endpoint: 'Validation Error',
         error: true,
       });
@@ -234,9 +271,12 @@ export default function SubmitReportModal({
         return;
       }
 
+      const reportId = result?.data?.report?.report_id;
       setSubmitSuccess({
-        message: `Report submitted via POST /report and queued as Unverified (Awaiting Human Confirmation) for ${place}.`,
+        message: `Emergency report received. Queued for human verification at ${place}.`,
+        reportId: reportId || null,
         endpoint: 'POST /report',
+        error: false,
       });
       setOriginalText('');
       setVoiceFileName('');
@@ -305,9 +345,9 @@ export default function SubmitReportModal({
               disabled={isSubmitting}
               className="w-full rounded-xl bg-[#120721] border border-purple-300/30 px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF6B35]"
             >
-              {places.map((p) => (
+              {availablePlaces.map((p) => (
                 <option key={p.place} value={p.place}>
-                  {p.place} ({p.district})
+                  {p.place} {p.district ? `(${p.district})` : ''}
                 </option>
               ))}
             </select>
@@ -485,20 +525,32 @@ export default function SubmitReportModal({
           />
         </div>
 
-        {/* Success Message Banner */}
+        {/* Success / Error Message Banner */}
         {submitSuccess && (
           <div
             role={submitSuccess.error ? 'alert' : 'status'}
-            className={`rounded-xl border p-3.5 text-xs ${
+            className={`rounded-xl border p-4 text-xs ${
               submitSuccess.error
                 ? 'bg-red-500/20 border-red-400/50 text-red-200'
                 : 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
             }`}
           >
             <div className={`font-bold ${submitSuccess.error ? 'text-red-300' : 'text-emerald-300'}`}>
-              {submitSuccess.error ? 'Submission Error' : 'Submission Status'} ({submitSuccess.endpoint})
+              {submitSuccess.error
+                ? `Submission Error (${submitSuccess.endpoint})`
+                : 'Emergency Report Submitted Successfully'}
             </div>
-            <p className="mt-1">{submitSuccess.message}</p>
+            <p className="mt-1.5">{submitSuccess.message}</p>
+            {submitSuccess.reportId && (
+              <div className="mt-3 p-3 rounded-lg bg-emerald-950/70 border border-emerald-500/40 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-emerald-300 font-mono text-xs uppercase tracking-wider font-semibold">
+                  Reference / Report ID:
+                </span>
+                <span className="font-mono font-bold text-sm text-white bg-emerald-900/80 px-2.5 py-1 rounded border border-emerald-400/30 select-all">
+                  {submitSuccess.reportId}
+                </span>
+              </div>
+            )}
           </div>
         )}
 

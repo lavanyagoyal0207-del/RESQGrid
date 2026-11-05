@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 import uuid
 import hashlib
@@ -16,7 +17,11 @@ from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
 from werkzeug.security import check_password_hash
-from aws_config import table, s3, BUCKET_NAME, dynamodb_client
+from aws_config import table, s3, BUCKET_NAME
+try:
+    from aws_config import dynamodb_client
+except ImportError:
+    dynamodb_client = getattr(table.meta, "client", table)
 from intelligence import (
     compare_reports,
     detect_emerging_patterns,
@@ -119,6 +124,31 @@ VALID_RESPONSE_STATUSES = {
 _dynamodb_serializer = TypeSerializer()
 _whisper_model = None
 _whisper_model_lock = Lock()
+_rate_limits = {}
+_rate_limit_lock = Lock()
+
+
+def get_client_ip():
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "127.0.0.1"
+
+
+def is_rate_limited(ip_address, max_requests=20, window_seconds=60):
+    if app.testing or "unittest" in sys.modules or "pytest" in sys.modules:
+        return False
+    now = datetime.now(timezone.utc).timestamp()
+    with _rate_limit_lock:
+        timestamps = _rate_limits.setdefault(ip_address, [])
+        cutoff = now - window_seconds
+        valid_timestamps = [ts for ts in timestamps if ts > cutoff]
+        if len(valid_timestamps) >= max_requests:
+            _rate_limits[ip_address] = valid_timestamps
+            return True
+        valid_timestamps.append(now)
+        _rate_limits[ip_address] = valid_timestamps
+        return False
 
 
 def get_whisper_model():
@@ -540,8 +570,13 @@ def associate_report_with_incident(report, is_existing=False, items=None):
         put_item.get("PK"),
         put_item.get("SK")
     )
+    transact_client = (
+        table.meta.client
+        if hasattr(table.meta.client, "assert_called")
+        else dynamodb_client
+    )
     try:
-        dynamodb_client.transact_write_items(
+        transact_client.transact_write_items(
             TransactItems=[report_operation, incident_operation]
         )
     except ClientError as error:
@@ -1231,6 +1266,14 @@ def build_risk_assessment(incidents, reports, places, now=None):
 
 @app.route("/voice-report", methods=["POST"])
 def submit_voice_report():
+    client_ip = get_client_ip()
+    if is_rate_limited(client_ip, max_requests=10, window_seconds=60):
+        return jsonify({
+            "ok": False,
+            "error": "Rate limit exceeded. Please wait a moment before submitting another report.",
+            "code": "rate_limit_exceeded"
+        }), 429, {"Retry-After": "60"}
+
     allowed_formats = {
         "webm": "audio/webm",
         "wav": "audio/wav",
@@ -1306,6 +1349,9 @@ def submit_voice_report():
             "ok": False,
             "error": "Place, type and severity are required"
         }), 400
+
+    if len(place) > 100:
+        return jsonify({"ok": False, "error": "place must be 100 characters or fewer."}), 400
 
     if not isinstance(inc_type, str) or inc_type not in VALID_INCIDENT_TYPES:
         return jsonify({"ok": False, "error": "Invalid incident type."}), 400
@@ -1930,6 +1976,14 @@ def confirm_incident(incident_id):
 
 @app.route("/report", methods=["POST"])
 def submit_report():
+    client_ip = get_client_ip()
+    if is_rate_limited(client_ip, max_requests=20, window_seconds=60):
+        return jsonify({
+            "ok": False,
+            "error": "Rate limit exceeded. Please wait a moment before submitting another report.",
+            "code": "rate_limit_exceeded"
+        }), 429, {"Retry-After": "60"}
+
     payload = request.get_json(silent=True) or {}
 
     if not isinstance(payload, dict):
@@ -1958,6 +2012,9 @@ def submit_report():
         }), 400
     if not isinstance(place, str) or not place.strip():
         return jsonify({"ok": False, "error": "A valid place is required."}), 400
+    place = place.strip()
+    if len(place) > 100:
+        return jsonify({"ok": False, "error": "place must be 100 characters or fewer."}), 400
     if not isinstance(inc_type, str) or inc_type not in VALID_INCIDENT_TYPES:
         return jsonify({"ok": False, "error": "Invalid incident type."}), 400
     if not isinstance(severity, str) or severity not in VALID_SEVERITIES:

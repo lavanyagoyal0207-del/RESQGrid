@@ -72,4 +72,37 @@ describe('SubmitReportModal', () => {
       'This illustrative sample is not a real report',
     );
   });
+
+  it('displays submission-success message and reference ID upon successful citizen report', async () => {
+    const user = userEvent.setup();
+    const submit = vi.fn().mockResolvedValue({
+      ok: true,
+      data: {
+        report: {
+          report_id: 'REP-CITIZEN-12345',
+          place: 'Mandi',
+          type: 'Flood',
+          severity: 'High',
+        },
+      },
+    });
+    render(
+      <SubmitReportModal
+        isOpen
+        onClose={vi.fn()}
+        places={[{ place: 'Mandi', district: 'Mandi' }]}
+        onSubmitReport={submit}
+      />,
+    );
+
+    const description = screen.getByLabelText(/Field Observation/);
+    await user.type(description, 'Bridge road is flooded near Mandi.');
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Emergency Report Submitted Successfully',
+    );
+    expect(screen.getByText('REP-CITIZEN-12345')).toBeInTheDocument();
+  });
 });

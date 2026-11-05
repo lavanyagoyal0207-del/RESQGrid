@@ -27,6 +27,7 @@ import ResourceManagementPanel from './components/ResourceManagementPanel';
 import OperationsOverview from './components/OperationsOverview';
 import PhaseFourDashboard from './components/PhaseFourDashboard';
 import LandingPage from './components/LandingPage';
+import mockData from './data/mockData.json';
 import { AlertTriangle, Activity, PackageCheck, ShieldCheck } from 'lucide-react';
 
 function OverviewSkeleton() {
@@ -49,7 +50,7 @@ function OverviewSkeleton() {
 export default function App() {
   const [incidents, setIncidents] = useState([]);
   const [reports, setReports] = useState([]);
-  const [places, setPlaces] = useState([]);
+  const [places, setPlaces] = useState(mockData.places || []);
   const [resources, setResources] = useState([]);
   const [riskAssessment, setRiskAssessment] = useState(null);
   const [incomingReportIds, setIncomingReportIds] = useState([]);
@@ -269,6 +270,7 @@ export default function App() {
     setOperatorCredentials(null);
     setIncidents([]);
     setReports([]);
+    setPlaces(mockData.places || []);
     setResources([]);
     setBrief(null);
     setRiskAssessment(null);
@@ -509,22 +511,24 @@ export default function App() {
       };
     }
 
-    // Fetch updated data from Flask
-    const snapshot = await refreshDashboardData();
-    if (snapshot.source !== 'flask-api') {
-      triggerToast(
-        'Report Saved',
-        `Report ${savedReport.report_id} was saved, but dashboard refresh failed.`,
-        'orange'
-      );
+    // Only refresh dashboard if operator credentials are present
+    if (operatorCredentials) {
+      const snapshot = await refreshDashboardData();
+      if (snapshot.source !== 'flask-api') {
+        triggerToast(
+          'Report Saved',
+          `Report ${savedReport.report_id} was saved, but dashboard refresh failed.`,
+          'orange'
+        );
 
-      return res;
+        return res;
+      }
     }
 
     // Update dashboard with actual backend data
     triggerToast(
       'Report Successfully Submitted',
-      `Report ${savedReport.report_id} saved to DynamoDB.`,
+      `Reference ID ${savedReport.report_id} queued for operator review.`,
       'emerald'
     );
 
@@ -558,21 +562,29 @@ export default function App() {
       };
     }
 
-    const snapshot = await refreshDashboardData();
+    if (operatorCredentials) {
+      const snapshot = await refreshDashboardData();
 
-    const transcriptionCompleted =
-      savedReport.transcription_status === 'Completed';
-    const dashboardRefreshed = snapshot.source === 'flask-api';
+      const transcriptionCompleted =
+        savedReport.transcription_status === 'Completed';
+      const dashboardRefreshed = snapshot.source === 'flask-api';
 
-    triggerToast(
-      transcriptionCompleted
-        ? 'Voice Report Transcribed'
-        : 'Voice Report Saved for Review',
-      `${savedReport.report_id}: ${
-        res.data.message || 'Audio and report metadata saved.'
-      }${dashboardRefreshed ? '' : ' Dashboard refresh was unavailable.'}`,
-      transcriptionCompleted && dashboardRefreshed ? 'emerald' : 'orange'
-    );
+      triggerToast(
+        transcriptionCompleted
+          ? 'Voice Report Transcribed'
+          : 'Voice Report Saved for Review',
+        `${savedReport.report_id}: ${
+          res.data.message || 'Audio and report metadata saved.'
+        }${dashboardRefreshed ? '' : ' Dashboard refresh was unavailable.'}`,
+        transcriptionCompleted && dashboardRefreshed ? 'emerald' : 'orange'
+      );
+    } else {
+      triggerToast(
+        'Voice Report Received',
+        `Reference ID ${savedReport.report_id} queued for operator review.`,
+        'emerald'
+      );
+    }
 
     return res;
   };

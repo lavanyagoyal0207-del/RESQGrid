@@ -30,18 +30,20 @@ default_cors_origins = (
     if os.getenv("RESQGRID_ENV", "development").strip().lower() == "production"
     else "http://localhost:5173,http://127.0.0.1:5173"
 )
+parsed_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "RESQGRID_ALLOWED_ORIGINS",
+        default_cors_origins,
+    ).split(",")
+    if origin.strip()
+]
+print("RESQGRID CORS origins loaded:", parsed_origins, flush=True)
 CORS(
     app,
     resources={
         r"/*": {
-            "origins": [
-                origin.strip()
-                for origin in os.getenv(
-                    "RESQGRID_ALLOWED_ORIGINS",
-                    default_cors_origins,
-                ).split(",")
-                if origin.strip()
-            ],
+            "origins": parsed_origins,
             "allow_headers": [
                 "Authorization",
                 "Content-Type",

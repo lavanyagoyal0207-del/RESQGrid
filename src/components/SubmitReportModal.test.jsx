@@ -5,7 +5,38 @@ import { describe, expect, it, vi } from 'vitest';
 import SubmitReportModal from './SubmitReportModal';
 
 describe('SubmitReportModal', () => {
-  it('validates a blank text report and reports server failures', async () => {
+  const mockCitizen = {
+    name: 'Jane Citizen',
+    email: 'jane@example.com',
+    role: 'citizen',
+  };
+
+  it('prompts citizen to sign in when not authenticated and prevents report submission', async () => {
+    const user = userEvent.setup();
+    const submit = vi.fn();
+    render(
+      <SubmitReportModal
+        isOpen
+        onClose={vi.fn()}
+        places={[{ place: 'Mandi', district: 'Mandi' }]}
+        onSubmitReport={submit}
+        citizenUser={null}
+      />,
+    );
+
+    expect(screen.getByText(/Citizen Sign-in Required/)).toBeInTheDocument();
+
+    const description = screen.getByLabelText(/Field Observation/);
+    await user.type(description, 'Flood water is rising.');
+    await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+    expect(submit).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Citizen sign-in is required to submit an emergency report.',
+    );
+  });
+
+  it('validates a blank text report and reports server failures for authenticated citizen', async () => {
     const user = userEvent.setup();
     const submit = vi.fn().mockResolvedValue({
       ok: false,
@@ -17,8 +48,12 @@ describe('SubmitReportModal', () => {
         onClose={vi.fn()}
         places={[{ place: 'Mandi', district: 'Mandi' }]}
         onSubmitReport={submit}
+        citizenUser={mockCitizen}
       />,
     );
+
+    expect(screen.getByText(/Reporting as/)).toBeInTheDocument();
+    expect(screen.getByText(/Jane Citizen/)).toBeInTheDocument();
 
     const description = screen.getByLabelText(/Field Observation/);
     expect(description).toBeRequired();
@@ -39,6 +74,7 @@ describe('SubmitReportModal', () => {
         places={[{ place: 'Mandi', district: 'Mandi' }]}
         onSubmitReport={vi.fn()}
         onSubmitVoiceReport={vi.fn()}
+        citizenUser={mockCitizen}
       />,
     );
 
@@ -61,6 +97,7 @@ describe('SubmitReportModal', () => {
         onClose={vi.fn()}
         places={[{ place: 'Mandi', district: 'Mandi' }]}
         onSubmitReport={submit}
+        citizenUser={mockCitizen}
       />,
     );
 
@@ -92,6 +129,7 @@ describe('SubmitReportModal', () => {
         onClose={vi.fn()}
         places={[{ place: 'Mandi', district: 'Mandi' }]}
         onSubmitReport={submit}
+        citizenUser={mockCitizen}
       />,
     );
 

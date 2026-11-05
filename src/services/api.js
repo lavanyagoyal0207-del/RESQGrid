@@ -19,10 +19,22 @@ function getIdempotencyKey() {
     `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+export function encodeBase64Utf8(str) {
+  if (typeof TextEncoder !== 'undefined') {
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
 function getAuthorizationHeader(credentials) {
   if (!credentials?.username || !credentials?.password) return {};
   return {
-    Authorization: `Basic ${btoa(`${credentials.username}:${credentials.password}`)}`,
+    Authorization: `Basic ${encodeBase64Utf8(`${credentials.username}:${credentials.password}`)}`,
   };
 }
 
@@ -122,8 +134,18 @@ export async function postConfirmIncident(
 // 4. Submit a field report
 export async function postFieldReport(
   payload,
-  apiBase = DEFAULT_API_BASE
+  credentialsOrApiBase = null,
+  apiBaseParam = DEFAULT_API_BASE
 ) {
+  let credentials = null;
+  let apiBase = DEFAULT_API_BASE;
+  if (typeof credentialsOrApiBase === 'string') {
+    apiBase = credentialsOrApiBase;
+  } else {
+    credentials = credentialsOrApiBase;
+    apiBase = apiBaseParam || DEFAULT_API_BASE;
+  }
+
   try {
     const submissionId =
       payload.submission_id || payload.idempotency_key || getIdempotencyKey();
@@ -134,6 +156,7 @@ export async function postFieldReport(
       headers: {
         'Content-Type': 'application/json',
         'Idempotency-Key': idempotencyKey,
+        ...getAuthorizationHeader(credentials),
       },
       body: JSON.stringify({
         ...reportPayload,
@@ -169,8 +192,18 @@ export async function postFieldReport(
 export async function postVoiceReport(
   audioFile,
   metadata,
-  apiBase = DEFAULT_API_BASE
+  credentialsOrApiBase = null,
+  apiBaseParam = DEFAULT_API_BASE
 ) {
+  let credentials = null;
+  let apiBase = DEFAULT_API_BASE;
+  if (typeof credentialsOrApiBase === 'string') {
+    apiBase = credentialsOrApiBase;
+  } else {
+    credentials = credentialsOrApiBase;
+    apiBase = apiBaseParam || DEFAULT_API_BASE;
+  }
+
   try {
     const formData = new FormData();
 
@@ -189,6 +222,7 @@ export async function postVoiceReport(
       method: 'POST',
       headers: {
         'Idempotency-Key': metadata.idempotency_key || submissionId,
+        ...getAuthorizationHeader(credentials),
       },
       body: formData,
     });
@@ -220,6 +254,64 @@ export async function postVoiceReport(
       mode: 'error',
       error: error.message,
     };
+  }
+}
+
+export async function registerCitizen(
+  userData,
+  apiBase = DEFAULT_API_BASE
+) {
+  try {
+    const response = await fetchWithTimeout(`${apiBase}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+    const data = await readJsonResponse(response);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: data?.error || `HTTP ${response.status}`,
+      };
+    }
+
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: error.message || 'Citizen registration failed.' };
+  }
+}
+
+export async function loginCitizen(
+  credentials,
+  apiBase = DEFAULT_API_BASE
+) {
+  try {
+    const response = await fetchWithTimeout(`${apiBase}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+        role: 'citizen',
+      }),
+    });
+    const data = await readJsonResponse(response);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: data?.error || `HTTP ${response.status}`,
+      };
+    }
+
+    return { ok: true, data };
+  } catch (error) {
+    return { ok: false, error: error.message || 'Citizen login failed.' };
   }
 }
 

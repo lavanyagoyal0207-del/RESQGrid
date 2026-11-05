@@ -44,6 +44,16 @@ class BackendWorkflowTests(unittest.TestCase):
             patch.object(backend_app, "table", self.table),
             patch.object(backend_app, "get_brief_item", return_value=None),
             patch.object(backend_app, "_whisper_model", None),
+            patch.object(
+                backend_app,
+                "authenticate_citizen",
+                return_value=({
+                    "user_id": "USR-VOICE-CITIZEN",
+                    "name": "Jane Citizen",
+                    "email": "jane.citizen@example.com",
+                    "role": "citizen",
+                }, None),
+            ),
         ]
         for patcher in self.patches:
             patcher.start()

@@ -41,6 +41,8 @@ export default function TopBar({
   operator,
   role,
   onLogout,
+  citizenUser,
+  onCitizenLogout,
 }) {
   const connection = apiMode === 'offline' && lastSyncAt
     ? { ...CONNECTION.offline, label: 'Offline · last snapshot' }
@@ -121,14 +123,22 @@ export default function TopBar({
                 <LogOut size={15} />
               </button>
             </div>
+          ) : citizenUser ? (
+            <div className="rq-profile" title={`Signed in as ${citizenUser.name} · Citizen`}>
+              <span className="rq-profile-avatar" style={{ background: '#0284c7' }}>{citizenUser.name.slice(0, 1).toUpperCase()}</span>
+              <span className="rq-profile-copy"><strong>{citizenUser.name}</strong><small>Citizen</small></span>
+              <button type="button" className="rq-logout-button" onClick={onCitizenLogout} aria-label="Sign out">
+                <LogOut size={15} />
+              </button>
+            </div>
           ) : (
             <button
               type="button"
               className="rq-operator-link"
               onClick={() => onSelectView('control-room')}
-              aria-label="Open operator sign-in"
+              aria-label="Open sign-in or register"
             >
-              Operator access <span aria-hidden="true">↗</span>
+              Sign In / Register <span aria-hidden="true">↗</span>
             </button>
           )}
         </div>

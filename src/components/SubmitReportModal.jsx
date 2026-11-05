@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ShieldCheck, AlertCircle } from 'lucide-react';
 const LANGUAGE_NAMES = {
   en: 'English',
   hi: 'Hindi',
@@ -61,6 +62,7 @@ export default function SubmitReportModal({
   onSubmitReport,
   onSubmitVoiceReport,
   isStandalonePage = false,
+  citizenUser = null,
 }) {
   const availablePlaces = places && places.length > 0 ? places : DEFAULT_PLACES;
   const [originalText, setOriginalText] = useState('');
@@ -144,6 +146,15 @@ export default function SubmitReportModal({
 
     setSubmitSuccess(null);
 
+    if (!citizenUser) {
+      setSubmitSuccess({
+        message: 'Citizen sign-in is required to submit an emergency report. Please register or log in first.',
+        endpoint: 'Authentication Required',
+        error: true,
+      });
+      return;
+    }
+
     if (demoSampleSelected) {
       setSubmitSuccess({
         message: 'This illustrative sample is not a real report or audio recording. Edit the report text or upload an actual recording before submitting.',
@@ -174,6 +185,8 @@ export default function SubmitReportModal({
           severity,
           idempotency_key: idempotencyKey,
           submission_id: idempotencyKey,
+          reporter_name: citizenUser?.name,
+          reporter_email: citizenUser?.email,
         });
 
         if (!result.ok) {
@@ -257,6 +270,8 @@ export default function SubmitReportModal({
         severity,
         idempotency_key: idempotencyKey,
         submission_id: idempotencyKey,
+        reporter_name: citizenUser?.name,
+        reporter_email: citizenUser?.email,
         source: voiceFileName
           ? `Voice Note (${voiceFileName})`
           : 'Citizen Field Report',
@@ -328,6 +343,22 @@ export default function SubmitReportModal({
             AI Suggests Only
           </span>
         </div>
+
+        {citizenUser ? (
+          <div className="rounded-xl bg-sky-950/40 border border-sky-400/30 p-2.5 text-xs text-sky-200 flex items-center gap-2">
+            <ShieldCheck size={16} className="text-sky-400 shrink-0" />
+            <span>
+              Reporting as <strong>{citizenUser.name}</strong> ({citizenUser.email}) · Authenticated Citizen
+            </span>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-amber-950/40 border border-amber-400/40 p-2.5 text-xs text-amber-200 flex items-center gap-2">
+            <AlertCircle size={16} className="text-amber-400 shrink-0" />
+            <span>
+              <strong>Citizen Sign-in Required:</strong> Please register or log in with your citizen account to submit an emergency report.
+            </span>
+          </div>
+        )}
 
         {/* Sector & Incident Metadata */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

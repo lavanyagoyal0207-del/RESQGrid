@@ -16,7 +16,7 @@ from faster_whisper import WhisperModel
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from aws_config import table, s3, BUCKET_NAME
 try:
     from aws_config import dynamodb_client
@@ -215,6 +215,7 @@ def get_all_items():
     return [
         item for item in items
         if not is_simulated_record(item)
+        and not item.get("PK", "").startswith("USER#")
     ]
 
 
@@ -717,6 +718,34 @@ def authenticate_operator(required_role="operator"):
         }), 403)
 
     return auth.username, None
+
+
+def authenticate_citizen():
+    auth = request.authorization
+    if not auth or not auth.username or auth.password is None:
+        return None, (jsonify({
+            "ok": False,
+            "error": "Citizen credentials are required.",
+            "code": "unauthorized"
+        }), 401)
+
+    normalized_email = auth.username.strip().lower()
+    try:
+        res = table.get_item(
+            Key={"PK": f"USER#{normalized_email}", "SK": "METADATA"}
+        )
+        user_item = res.get("Item")
+        if user_item and user_item.get("role") == "citizen":
+            if check_password_hash(user_item.get("password_hash", ""), auth.password):
+                return user_item, None
+    except Exception:
+        app.logger.exception("Error during citizen authentication for %s", normalized_email)
+
+    return None, (jsonify({
+        "ok": False,
+        "error": "Citizen credentials are invalid.",
+        "code": "invalid_credentials"
+    }), 401)
 
 
 def public_report(report):
@@ -1274,6 +1303,10 @@ def submit_voice_report():
             "code": "rate_limit_exceeded"
         }), 429, {"Retry-After": "60"}
 
+    citizen, auth_error = authenticate_citizen()
+    if auth_error:
+        return auth_error
+
     allowed_formats = {
         "webm": "audio/webm",
         "wav": "audio/wav",
@@ -1387,6 +1420,12 @@ def submit_voice_report():
         "verification_status": "Unverified",
         "data_classification": "operational"
     }
+    if citizen.get("user_id"):
+        voice_report["reporter_id"] = citizen.get("user_id")
+    if citizen.get("name"):
+        voice_report["reporter_name"] = citizen.get("name")
+    if citizen.get("email"):
+        voice_report["reporter_email"] = citizen.get("email")
 
     try:
         table.put_item(
@@ -1796,6 +1835,190 @@ def correct_report_analysis(report_id):
     return jsonify({"ok": True, "report": public_report(report)})
 
 
+@app.route("/auth/register", methods=["POST"])
+def register_citizen():
+    client_ip = get_client_ip()
+    if is_rate_limited(client_ip, max_requests=10, window_seconds=60):
+        return jsonify({
+            "ok": False,
+            "error": "Too many registration attempts. Please wait a moment.",
+            "code": "rate_limit_exceeded"
+        }), 429, {"Retry-After": "60"}
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "error": "A JSON object is required."}), 400
+
+    name = payload.get("name")
+    email = payload.get("email")
+    password = payload.get("password")
+
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) < 2 or len(name.strip()) > 100:
+        return jsonify({"ok": False, "error": "Full name must be between 2 and 100 characters."}), 400
+
+    if not isinstance(email, str) or not email.strip() or len(email.strip()) > 254:
+        return jsonify({"ok": False, "error": "A valid email address is required."}), 400
+
+    normalized_email = email.strip().lower()
+    email_pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+    if not re.fullmatch(email_pattern, normalized_email):
+        return jsonify({"ok": False, "error": "A valid email address format is required."}), 400
+
+    if not isinstance(password, str) or len(password) < 8 or len(password) > 128:
+        return jsonify({"ok": False, "error": "Password must be between 8 and 128 characters."}), 400
+
+    user_id = f"USR-{uuid.uuid4().hex[:12].upper()}"
+    now_iso = datetime.now(timezone.utc).isoformat()
+    password_hash = generate_password_hash(password)
+
+    user_item = {
+        "PK": f"USER#{normalized_email}",
+        "SK": "METADATA",
+        "user_id": user_id,
+        "name": name.strip(),
+        "email": normalized_email,
+        "password_hash": password_hash,
+        "role": "citizen",
+        "created_at": now_iso,
+        "updated_at": now_iso,
+        "data_classification": "operational",
+    }
+
+    try:
+        table.put_item(
+            Item=user_item,
+            ConditionExpression="attribute_not_exists(PK)"
+        )
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code")
+        if error_code in ("ConditionalCheckFailedException", "TransactionCanceledException"):
+            return jsonify({
+                "ok": False,
+                "error": "An account with this email already exists."
+            }), 409
+        app.logger.exception("Failed to create citizen account for %s", normalized_email)
+        return jsonify({
+            "ok": False,
+            "error": "Account creation failed due to a server error."
+        }), 500
+
+    return jsonify({
+        "ok": True,
+        "message": "Citizen account created successfully.",
+        "user": {
+            "user_id": user_id,
+            "name": name.strip(),
+            "email": normalized_email,
+            "role": "citizen"
+        }
+    }), 201
+
+
+@app.route("/auth/login", methods=["POST"])
+def auth_login():
+    client_ip = get_client_ip()
+    if is_rate_limited(client_ip, max_requests=15, window_seconds=60):
+        return jsonify({
+            "ok": False,
+            "error": "Too many login attempts. Please wait a moment.",
+            "code": "rate_limit_exceeded"
+        }), 429, {"Retry-After": "60"}
+
+    payload = request.get_json(silent=True)
+    auth = request.authorization
+    identifier = None
+    password = None
+    requested_role = None
+
+    if payload is not None and not isinstance(payload, dict):
+        return jsonify({
+            "ok": False,
+            "error": "A JSON object is required."
+        }), 400
+
+    if isinstance(payload, dict):
+        raw_id = payload.get("identifier")
+        if raw_id is None:
+            raw_id = payload.get("email")
+        if raw_id is None:
+            raw_id = payload.get("username")
+
+        if raw_id is not None:
+            if not isinstance(raw_id, str):
+                return jsonify({
+                    "ok": False,
+                    "error": "Username or email must be a string."
+                }), 400
+            identifier = raw_id.strip()
+
+        raw_pwd = payload.get("password")
+        if raw_pwd is not None:
+            if not isinstance(raw_pwd, str):
+                return jsonify({
+                    "ok": False,
+                    "error": "Password must be a string."
+                }), 400
+            password = raw_pwd
+
+        raw_role = payload.get("role")
+        if raw_role is not None and isinstance(raw_role, str):
+            requested_role = raw_role.strip()
+
+    elif auth and auth.username:
+        if isinstance(auth.username, str):
+            identifier = auth.username.strip()
+        if isinstance(auth.password, str):
+            password = auth.password
+
+    if not identifier or not isinstance(password, str) or not password:
+        return jsonify({
+            "ok": False,
+            "error": "Username/email and password are required."
+        }), 400
+
+    # 1. Operator login check (if not strictly requesting citizen role)
+    if requested_role != "citizen":
+        operator_creds, _ = get_operator_credentials()
+        if operator_creds and identifier in operator_creds:
+            expected_hash = operator_creds[identifier]
+            if verify_operator_password(expected_hash, password):
+                role, _ = get_operator_role(identifier)
+                return jsonify({
+                    "ok": True,
+                    "user": {
+                        "operator": identifier,
+                        "username": identifier,
+                        "role": role or "operator"
+                    }
+                }), 200
+
+    # 2. Citizen login check from DynamoDB
+    normalized_email = identifier.lower()
+    try:
+        res = table.get_item(
+            Key={"PK": f"USER#{normalized_email}", "SK": "METADATA"}
+        )
+        item = res.get("Item")
+        if item and item.get("role") == "citizen":
+            if check_password_hash(item.get("password_hash", ""), password):
+                return jsonify({
+                    "ok": True,
+                    "user": {
+                        "user_id": item.get("user_id"),
+                        "name": item.get("name"),
+                        "email": item.get("email"),
+                        "role": "citizen"
+                    }
+                }), 200
+    except Exception:
+        app.logger.exception("Error during citizen authentication for %s", normalized_email)
+
+    return jsonify({
+        "ok": False,
+        "error": "Invalid email/username or password."
+    }), 401
+
+
 @app.route("/operator/session", methods=["POST"])
 def operator_session():
     operator, error = authenticate_operator(required_role="viewer")
@@ -1984,6 +2207,10 @@ def submit_report():
             "code": "rate_limit_exceeded"
         }), 429, {"Retry-After": "60"}
 
+    citizen, auth_error = authenticate_citizen()
+    if auth_error:
+        return auth_error
+
     payload = request.get_json(silent=True) or {}
 
     if not isinstance(payload, dict):
@@ -2055,6 +2282,12 @@ def submit_report():
         "review_status": "Needs Human Review",
         "data_classification": "operational"
     }
+    if citizen.get("user_id"):
+        new_report["reporter_id"] = citizen.get("user_id")
+    if citizen.get("name"):
+        new_report["reporter_name"] = citizen.get("name")
+    if citizen.get("email"):
+        new_report["reporter_email"] = citizen.get("email")
     enrich_report(new_report, intelligence_items)
 
     try:

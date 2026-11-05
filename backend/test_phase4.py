@@ -320,6 +320,16 @@ class PhaseFourApiTests(unittest.TestCase):
         self.patches = [
             patch.object(backend_app, "table", self.table),
             patch.object(backend_app, "get_brief_item", return_value=None),
+            patch.object(
+                backend_app,
+                "authenticate_citizen",
+                return_value=({
+                    "user_id": "USR-PHASE4-CITIZEN",
+                    "name": "Citizen Reporter",
+                    "email": "citizen@example.com",
+                    "role": "citizen",
+                }, None),
+            ),
         ]
         for patcher in self.patches:
             patcher.start()

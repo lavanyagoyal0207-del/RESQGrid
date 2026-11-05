@@ -4,6 +4,8 @@ import {
   fetchIncidentsData,
   postFieldReport,
   postVoiceReport,
+  registerCitizen,
+  loginCitizen,
   verifyOperatorCredentials,
   verifyReport,
   generateSituationBrief,
@@ -72,6 +74,7 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
   const [operatorCredentials, setOperatorCredentials] = useState(null);
+  const [citizenUser, setCitizenUser] = useState(null);
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
   const [isApprovingBrief, setIsApprovingBrief] = useState(false);
   const [toastBanner, setToastBanner] = useState(null);
@@ -244,6 +247,51 @@ export default function App() {
   );
   const operatorCanMutate =
     Boolean(operatorCredentials) && operatorCredentials.role !== 'viewer';
+
+  const handleCitizenRegister = async (userData) => {
+    const result = await registerCitizen(userData);
+    if (!result.ok) {
+      triggerToast('Registration Failed', result.error, 'red');
+      return result;
+    }
+    setCitizenUser({
+      ...result.data.user,
+      username: userData.email,
+      password: userData.password,
+    });
+    triggerToast(
+      'Registration Successful',
+      `Welcome, ${result.data.user.name}! Your citizen account is ready.`,
+      'emerald'
+    );
+    setActiveView('submit-page');
+    return result;
+  };
+
+  const handleCitizenLogin = async (credentials) => {
+    const result = await loginCitizen(credentials);
+    if (!result.ok) {
+      triggerToast('Citizen Sign-in Failed', result.error, 'red');
+      return result;
+    }
+    setCitizenUser({
+      ...result.data.user,
+      username: credentials.email || credentials.username || credentials.identifier,
+      password: credentials.password,
+    });
+    triggerToast(
+      'Citizen Signed In',
+      `Welcome back, ${result.data.user.name}.`,
+      'emerald'
+    );
+    setActiveView('submit-page');
+    return result;
+  };
+
+  const handleCitizenLogout = () => {
+    setCitizenUser(null);
+    triggerToast('Signed Out', 'You have been signed out of your citizen account.', 'slate');
+  };
 
   const handleOperatorLogin = async (credentials) => {
     const result = await verifyOperatorCredentials(credentials);
@@ -475,14 +523,29 @@ export default function App() {
     source,
     idempotency_key,
   }) => {
-    const res = await postFieldReport({
-      original_text,
-      place,
-      type,
-      severity,
-      source,
-      idempotency_key,
-    });
+    if (!citizenUser) {
+      triggerToast(
+        'Authentication Required',
+        'Citizen sign-in is required to submit an emergency report.',
+        'orange'
+      );
+      return {
+        ok: false,
+        error: 'Citizen sign-in is required to submit an emergency report.',
+      };
+    }
+
+    const res = await postFieldReport(
+      {
+        original_text,
+        place,
+        type,
+        severity,
+        source,
+        idempotency_key,
+      },
+      citizenUser
+    );
 
     // Stop if backend submission failed
     if (!res.ok) {
@@ -536,7 +599,19 @@ export default function App() {
   };
 
   const handleSubmitVoiceReport = async (audioFile, metadata) => {
-    const res = await postVoiceReport(audioFile, metadata);
+    if (!citizenUser) {
+      triggerToast(
+        'Authentication Required',
+        'Citizen sign-in is required to submit a voice emergency report.',
+        'orange'
+      );
+      return {
+        ok: false,
+        error: 'Citizen sign-in is required to submit a voice emergency report.',
+      };
+    }
+
+    const res = await postVoiceReport(audioFile, metadata, citizenUser);
 
     if (!res.ok) {
       triggerToast(
@@ -632,10 +707,18 @@ export default function App() {
     />
   );
 
-  const renderOperatorAccess = () => operatorCredentials ? null : (
+  const renderOperatorAccess = () => (
     <OperatorAccessPanel
+      operator={operatorCredentials?.username}
+      role={operatorCredentials?.role}
+      citizenUser={citizenUser}
+      defaultTab={operatorCredentials ? 'operator' : 'citizen'}
       onLogin={handleOperatorLogin}
       onLogout={handleOperatorLogout}
+      onCitizenRegister={handleCitizenRegister}
+      onCitizenLogin={handleCitizenLogin}
+      onCitizenLogout={handleCitizenLogout}
+      onOpenSubmitReport={() => setActiveView('submit-page')}
     />
   );
 
@@ -666,6 +749,8 @@ export default function App() {
             operator={operatorCredentials?.username}
             role={operatorCredentials?.role}
             onLogout={handleOperatorLogout}
+            citizenUser={citizenUser}
+            onCitizenLogout={handleCitizenLogout}
           />
 
           {toastBanner && (
@@ -698,6 +783,7 @@ export default function App() {
                 isOpen={true}
                 isStandalonePage={true}
                 places={places}
+                citizenUser={citizenUser}
                 onSubmitReport={handleSubmitReport}
                 onSubmitVoiceReport={handleSubmitVoiceReport}
                 onClose={() => setActiveView('control-room')}
@@ -914,6 +1000,7 @@ export default function App() {
         isOpen={isSubmitModalOpen}
         onClose={() => setIsSubmitModalOpen(false)}
         places={places}
+        citizenUser={citizenUser}
         onSubmitReport={handleSubmitReport}
         onSubmitVoiceReport={handleSubmitVoiceReport}
       />

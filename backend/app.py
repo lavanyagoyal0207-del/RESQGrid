@@ -316,7 +316,7 @@ def get_place_by_name(name, items=None):
     return None
 
 
-def serialize_for_dynamodb(values):
+def normalize_for_dynamodb(values):
     def normalize(value):
         if isinstance(value, float):
             return Decimal(str(value))
@@ -327,10 +327,16 @@ def serialize_for_dynamodb(values):
         return value
 
     return {
-        key: _dynamodb_serializer.serialize(normalize(value))
+        key: normalize(value)
         for key, value in values.items()
     }
 
+
+def serialize_for_dynamodb(values):
+    return {
+        key: _dynamodb_serializer.serialize(value)
+        for key, value in normalize_for_dynamodb(values).items()
+    }
 
 def valid_entity_id(value):
     return isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,80}", value) is not None
@@ -1697,7 +1703,7 @@ def correct_report_analysis(report_id):
                 "analysis_corrected_by = :operator, "
                 "analysis_corrected_at = :corrected_at"
             ),
-            ExpressionAttributeValues=serialize_for_dynamodb({
+            ExpressionAttributeValues=normalize_for_dynamodb({
                 ":analysis": analysis,
                 ":analysis_status": "Human Corrected",
                 ":operator": operator,
@@ -2067,7 +2073,7 @@ def generate_brief():
                 ]
             )
         else:
-            table.put_item(Item=serialize_for_dynamodb(brief))
+            table.put_item(Item=normalize_for_dynamodb(brief))
     except Exception:
         app.logger.exception("Situation brief generation could not be saved")
         return jsonify({
@@ -2138,7 +2144,7 @@ def edit_brief():
                 "#text": "text",
                 "#status": "status",
             },
-            ExpressionAttributeValues=serialize_for_dynamodb({
+            ExpressionAttributeValues=normalize_for_dynamodb({
                 ":sections": sections,
                 ":edited_at": edited_at,
                 ":operator": operator,
@@ -3034,7 +3040,7 @@ def create_alert():
     }
     try:
         table.put_item(
-            Item=serialize_for_dynamodb(alert),
+            Item=normalize_for_dynamodb(alert),
             ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
         )
     except Exception:
@@ -3096,7 +3102,7 @@ def edit_alert(alert_id):
                 "SET messages = :messages, translation_status = :translation_status, "
                 "history = :history, updated_at = :updated, updated_by = :operator"
             ),
-            ExpressionAttributeValues=serialize_for_dynamodb({
+            ExpressionAttributeValues=normalize_for_dynamodb({
                 ":messages": updated_messages,
                 ":translation_status": updated_status,
                 ":history": history,
@@ -3160,7 +3166,7 @@ def approve_alert(alert_id):
                 "approved_at = :timestamp, history = :history"
             ),
             ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues=serialize_for_dynamodb({
+            ExpressionAttributeValues=normalize_for_dynamodb({
                 ":status": "Approved",
                 ":operator": operator,
                 ":timestamp": now,
@@ -3215,7 +3221,7 @@ def simulate_alert_delivery(alert_id):
                 "history = :history, delivery_mode = :delivery_mode"
             ),
             ExpressionAttributeNames={"#status": "status"},
-            ExpressionAttributeValues=serialize_for_dynamodb({
+            ExpressionAttributeValues=normalize_for_dynamodb({
                 ":status": "Sent",
                 ":operator": operator,
                 ":timestamp": now,

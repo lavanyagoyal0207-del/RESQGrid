@@ -1,4 +1,5 @@
-const DEFAULT_API_BASE = import.meta.env?.VITE_FLASK_API_URL || '';
+const rawApiBase = import.meta.env?.VITE_FLASK_API_URL || '';
+const DEFAULT_API_BASE = typeof rawApiBase === 'string' ? rawApiBase.replace(/\/+$/, '') : '';
 const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
 
 async function fetchWithTimeout(url, { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...options } = {}) {
@@ -295,8 +296,8 @@ export async function loginCitizen(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        email: credentials.email,
-        password: credentials.password,
+        email: credentials?.email || credentials?.identifier || credentials?.username,
+        password: credentials?.password,
         role: 'citizen',
       }),
     });

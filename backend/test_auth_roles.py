@@ -536,6 +536,27 @@ class AuthAndRoleTests(unittest.TestCase):
             data = response.get_json()
             self.assertFalse(data["ok"])
 
+    # 20. CORS headers support both Render and Vercel frontend origins
+    def test_cors_origins_supported_for_vercel_and_render(self):
+        origins = [
+            "https://resqgrid-1.onrender.com",
+            "https://resqgrid-amber.vercel.app",
+        ]
+        for origin in origins:
+            response = self.client.options(
+                "/auth/login",
+                headers={
+                    "Origin": origin,
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "Content-Type",
+                },
+            )
+            self.assertEqual(
+                response.headers.get("Access-Control-Allow-Origin"),
+                origin,
+                f"CORS header missing for origin: {origin}"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

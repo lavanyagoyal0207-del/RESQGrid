@@ -34,8 +34,12 @@ from intelligence import (
 )
 
 app = Flask(__name__)
+SUPPORTED_FRONTEND_ORIGINS = [
+    "https://resqgrid-1.onrender.com",
+    "https://resqgrid-amber.vercel.app",
+]
 default_cors_origins = (
-    "https://resqgrid-1.onrender.com,https://resqgrid-amber.vercel.app"
+    ",".join(SUPPORTED_FRONTEND_ORIGINS)
     if os.getenv("RESQGRID_ENV", "development").strip().lower() == "production"
     else "http://localhost:5173,http://127.0.0.1:5173"
 )
@@ -47,13 +51,9 @@ parsed_origins = [
     ).split(",")
     if origin.strip()
 ]
-if os.getenv("RESQGRID_ENV", "development").strip().lower() == "production":
-    for origin in (
-        "https://resqgrid-1.onrender.com",
-        "https://resqgrid-amber.vercel.app",
-    ):
-        if origin not in parsed_origins:
-            parsed_origins.append(origin)
+for origin in SUPPORTED_FRONTEND_ORIGINS:
+    if origin not in parsed_origins:
+        parsed_origins.append(origin)
 print("RESQGRID CORS origins loaded:", parsed_origins, flush=True)
 CORS(
     app,

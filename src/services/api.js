@@ -1,4 +1,6 @@
-const rawApiBase = import.meta.env?.VITE_FLASK_API_URL || '';
+const rawApiBase =
+  import.meta.env?.VITE_FLASK_API_URL ||
+  (import.meta.env?.PROD ? 'https://resqgrid-4qes.onrender.com' : '');
 const DEFAULT_API_BASE = typeof rawApiBase === 'string' ? rawApiBase.replace(/\/+$/, '') : '';
 const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
 

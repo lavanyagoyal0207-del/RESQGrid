@@ -7,6 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: Object.fromEntries(
       [
+        '/auth',
         '/incidents',
         '/intelligence',
         '/reports',

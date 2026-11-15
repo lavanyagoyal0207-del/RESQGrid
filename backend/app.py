@@ -12,7 +12,10 @@ from threading import Lock
 
 from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
-from faster_whisper import WhisperModel
+try:
+    from faster_whisper import WhisperModel
+except (ImportError, Exception):
+    WhisperModel = None
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from werkzeug.exceptions import HTTPException
@@ -32,7 +35,7 @@ from intelligence import (
 
 app = Flask(__name__)
 default_cors_origins = (
-    ""
+    "https://resqgrid-1.onrender.com,https://resqgrid-amber.vercel.app"
     if os.getenv("RESQGRID_ENV", "development").strip().lower() == "production"
     else "http://localhost:5173,http://127.0.0.1:5173"
 )
@@ -44,6 +47,13 @@ parsed_origins = [
     ).split(",")
     if origin.strip()
 ]
+if os.getenv("RESQGRID_ENV", "development").strip().lower() == "production":
+    for origin in (
+        "https://resqgrid-1.onrender.com",
+        "https://resqgrid-amber.vercel.app",
+    ):
+        if origin not in parsed_origins:
+            parsed_origins.append(origin)
 print("RESQGRID CORS origins loaded:", parsed_origins, flush=True)
 CORS(
     app,
@@ -155,6 +165,8 @@ def get_whisper_model():
     global _whisper_model
 
     if _whisper_model is None:
+        if WhisperModel is None:
+            raise RuntimeError("Whisper model is unavailable.")
         with _whisper_model_lock:
             if _whisper_model is None:
                 _whisper_model = WhisperModel(

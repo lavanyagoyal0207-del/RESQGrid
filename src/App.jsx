@@ -76,27 +76,26 @@ export default function App() {
   const [apiError, setApiError] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
-  const [operatorCredentials, setOperatorCredentials] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem('resqgrid_operator_creds');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [citizenUser, setCitizenUser] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem('resqgrid_citizen_user');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  });
+  // In-memory authentication state only: no plaintext passwords or credentials in browser storage
+  const [operatorCredentials, setOperatorCredentials] = useState(null);
+  const [citizenUser, setCitizenUser] = useState(null);
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
   const [isApprovingBrief, setIsApprovingBrief] = useState(false);
   const [toastBanner, setToastBanner] = useState(null);
   const dashboardRequestInFlight = useRef(false);
   const knownReportIds = useRef(null);
+
+  // Defensive cleanup: purge any legacy credentials from browser storage on mount
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('resqgrid_citizen_user');
+      sessionStorage.removeItem('resqgrid_operator_creds');
+      localStorage.removeItem('resqgrid_citizen_user');
+      localStorage.removeItem('resqgrid_operator_creds');
+    } catch {
+      // Ignore errors in environments where web storage is restricted
+    }
+  }, []);
 
   const triggerToast = (title, detail, tone = 'orange') => {
     setToastBanner({ title, detail, tone });
@@ -276,12 +275,8 @@ export default function App() {
       username: userData.email,
       password: userData.password,
     };
+    // Kept in React memory only for active tab session
     setCitizenUser(citizenObj);
-    try {
-      sessionStorage.setItem('resqgrid_citizen_user', JSON.stringify(citizenObj));
-    } catch {
-      // Ignore session storage errors
-    }
     triggerToast(
       'Registration Successful',
       `Welcome, ${result.data.user.name}! Your citizen account is ready.`,
@@ -302,12 +297,8 @@ export default function App() {
       username: credentials.email || credentials.username || credentials.identifier,
       password: credentials.password,
     };
+    // Kept in React memory only for active tab session
     setCitizenUser(citizenObj);
-    try {
-      sessionStorage.setItem('resqgrid_citizen_user', JSON.stringify(citizenObj));
-    } catch {
-      // Ignore session storage errors
-    }
     triggerToast(
       'Citizen Signed In',
       `Welcome back, ${result.data.user.name}.`,
@@ -321,6 +312,7 @@ export default function App() {
     setCitizenUser(null);
     try {
       sessionStorage.removeItem('resqgrid_citizen_user');
+      localStorage.removeItem('resqgrid_citizen_user');
     } catch {
       // Ignore
     }
@@ -338,12 +330,8 @@ export default function App() {
       ...credentials,
       role: result.data.role || 'operator',
     };
+    // Kept in React memory only for active tab session
     setOperatorCredentials(authenticatedCredentials);
-    try {
-      sessionStorage.setItem('resqgrid_operator_creds', JSON.stringify(authenticatedCredentials));
-    } catch {
-      // Ignore
-    }
     await refreshDashboardData(false, authenticatedCredentials);
     triggerToast(
       'Operator Signed In',
@@ -357,6 +345,7 @@ export default function App() {
     setOperatorCredentials(null);
     try {
       sessionStorage.removeItem('resqgrid_operator_creds');
+      localStorage.removeItem('resqgrid_operator_creds');
     } catch {
       // Ignore
     }

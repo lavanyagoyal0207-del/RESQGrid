@@ -1372,6 +1372,19 @@ def build_risk_assessment(incidents, reports, places, now=None):
     }
 
 
+@app.route("/health", methods=["GET"])
+def health_check():
+    response = {
+        "ok": True,
+        "status": "healthy",
+        "service": "resqgrid-backend",
+    }
+    render_commit = os.getenv("RENDER_GIT_COMMIT")
+    if render_commit:
+        response["commit"] = render_commit
+    return jsonify(response), 200
+
+
 @app.route("/voice-report", methods=["POST"])
 def submit_voice_report():
     client_ip = get_client_ip()

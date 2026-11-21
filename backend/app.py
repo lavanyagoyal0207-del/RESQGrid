@@ -538,11 +538,13 @@ def associate_report_with_incident(report, is_existing=False, items=None):
             if same_place
             else f"{report['place']} ({dist_km:.1f} km from {incident.get('place')})"
         )
+        elapsed_sec = int(time_delta.total_seconds())
+        elapsed_desc = f"{elapsed_sec}s" if elapsed_sec < 60 else f"{elapsed_sec // 60}m {elapsed_sec % 60}s"
         report["grouping_reason"] = (
             f"Grouped with {incident_id}: same type ({report['type']}) and "
             f"location ({loc_str}); report arrived within "
             f"{REPORT_GROUPING_WINDOW_MINUTES} minutes "
-            f"({int(time_delta.total_seconds())} seconds) of its latest "
+            f"(elapsed: {elapsed_desc}) of its latest "
             "associated report."
         )
         report["incident_id"] = incident_id

@@ -156,6 +156,20 @@ export default function DarkMap({
       );
       const selected = incident.incident_id === selectedIncidentId;
       const severityKey = String(incident.severity || 'low').toLowerCase();
+      if (reportCount > 1) {
+        const haloRadius = severity.size + (selected ? 4 : 0) + Math.min(reportCount * 2, 16);
+        const halo = L.circleMarker([Number(incident.lat), Number(incident.lng)], {
+          radius: haloRadius,
+          color: '#FF6B35',
+          weight: 1.5,
+          dashArray: '4 4',
+          fillColor: '#FF6B35',
+          fillOpacity: 0.15,
+          interactive: false,
+        });
+        halo.addTo(layerGroup);
+      }
+
       const marker = L.circleMarker([Number(incident.lat), Number(incident.lng)], {
         className: `rq-map-marker severity-${severityKey}${selected ? ' is-selected' : ''}`,
         radius: severity.size + (selected ? 3 : 0),
@@ -172,6 +186,42 @@ export default function DarkMap({
         fillOpacity: 0.95,
         riseOnHover: true,
       });
+
+      if (selected && linkedReports.length > 0) {
+        linkedReports.forEach((rep) => {
+          if (isValidCoordinate(rep.lat, rep.lng)) {
+            const repLat = Number(rep.lat);
+            const repLng = Number(rep.lng);
+            const incLat = Number(incident.lat);
+            const incLng = Number(incident.lng);
+            if (Math.abs(repLat - incLat) > 0.0005 || Math.abs(repLng - incLng) > 0.0005) {
+              const line = L.polyline([[incLat, incLng], [repLat, repLng]], {
+                color: '#FF6B35',
+                weight: 2,
+                dashArray: '4 4',
+                opacity: 0.7,
+              });
+              line.addTo(layerGroup);
+
+              const repMarker = L.circleMarker([repLat, repLng], {
+                radius: 5,
+                color: '#FF6B35',
+                weight: 1.5,
+                fillColor: '#f8fafc',
+                fillOpacity: 0.85,
+              });
+              repMarker.bindTooltip(
+                createTooltip(rep.report_id, [
+                  `${rep.type} · ${rep.place}`,
+                  `Clustered into ${incident.incident_id}`,
+                ]),
+                { direction: 'top', className: 'resq-map-tooltip', opacity: 1 }
+              );
+              repMarker.addTo(layerGroup);
+            }
+          }
+        });
+      }
       marker.bindTooltip(
         createTooltip(incident.incident_id, [
           `${incident.type || 'Incident'} · ${incident.severity || 'Unknown'} severity`,

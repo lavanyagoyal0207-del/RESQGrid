@@ -504,6 +504,20 @@ export function updateIncidentResponse(
   );
 }
 
+export function confirmIncident(
+  incidentId,
+  credentials,
+  apiBase = DEFAULT_API_BASE
+) {
+  return authenticatedJsonRequest(
+    `/incidents/${encodeURIComponent(incidentId)}/confirm`,
+    'POST',
+    {},
+    credentials,
+    apiBase
+  );
+}
+
 export function fetchReportComparisons(
   credentials,
   windowMinutes = 60,

@@ -12,6 +12,7 @@ export default function IncidentDetail({
   reports,
   operator,
   onVerifyReport,
+  onConfirmIncident,
   onLoadReportAudio,
   onResponseStatusChange,
   isSubmittingAction,
@@ -159,6 +160,16 @@ export default function IncidentDetail({
             >
               Status: {incident.status}
             </span>
+            {operator && incident.status !== 'Confirmed' && onConfirmIncident && (
+              <button
+                type="button"
+                disabled={isSubmittingAction}
+                onClick={() => onConfirmIncident(incident.incident_id)}
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/50 px-3 py-1 text-xs font-bold text-white transition disabled:opacity-50"
+              >
+                {isSubmittingAction ? 'Confirming...' : 'Confirm Incident'}
+              </button>
+            )}
           </div>
         </div>
 

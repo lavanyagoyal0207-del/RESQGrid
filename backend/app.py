@@ -28,6 +28,7 @@ except ImportError:
 from intelligence import (
     compare_reports,
     detect_emerging_patterns,
+    distance_km,
     is_simulated_record,
     process_report,
     translate_text,
@@ -113,6 +114,11 @@ REPORT_GROUPING_WINDOW_MINUTES = int(
 )
 if REPORT_GROUPING_WINDOW_MINUTES <= 0:
     raise ValueError("REPORT_GROUPING_WINDOW_MINUTES must be positive")
+INCIDENT_CLUSTER_RADIUS_KM = float(
+    os.getenv("INCIDENT_CLUSTER_RADIUS_KM", "15.0")
+)
+if INCIDENT_CLUSTER_RADIUS_KM <= 0:
+    raise ValueError("INCIDENT_CLUSTER_RADIUS_KM must be positive")
 
 VALID_INCIDENT_TYPES = {"Flood", "Landslide", "Blocked Road"}
 VALID_SEVERITIES = {"Critical", "High", "Medium", "Low"}
@@ -338,19 +344,43 @@ def get_report(report_id):
     return response.get("Item")
 
 
+FALLBACK_PLACES = {
+    "mandi": {"place": "Mandi", "lat": Decimal("31.7087"), "lng": Decimal("76.9320"), "district": "Mandi"},
+    "jogindarnagar": {"place": "Jogindarnagar", "lat": Decimal("31.9912"), "lng": Decimal("76.7899"), "district": "Mandi"},
+    "kullu": {"place": "Kullu", "lat": Decimal("31.9592"), "lng": Decimal("77.1089"), "district": "Kullu"},
+    "manali": {"place": "Manali", "lat": Decimal("32.2432"), "lng": Decimal("77.1892"), "district": "Kullu"},
+    "shimla": {"place": "Shimla", "lat": Decimal("31.1048"), "lng": Decimal("77.1734"), "district": "Shimla"},
+    "dharamshala": {"place": "Dharamshala", "lat": Decimal("32.2190"), "lng": Decimal("76.3234"), "district": "Kangra"},
+    "pandoh": {"place": "Pandoh", "lat": Decimal("31.6700"), "lng": Decimal("77.0500"), "district": "Mandi"},
+    "aut": {"place": "Aut", "lat": Decimal("31.7400"), "lng": Decimal("77.2100"), "district": "Mandi"},
+    "chamba": {"place": "Chamba", "lat": Decimal("32.5534"), "lng": Decimal("76.1258"), "district": "Chamba"},
+    "bilaspur": {"place": "Bilaspur", "lat": Decimal("31.3260"), "lng": Decimal("76.7580"), "district": "Bilaspur"},
+    "hamirpur": {"place": "Hamirpur", "lat": Decimal("31.6862"), "lng": Decimal("76.5213"), "district": "Hamirpur"},
+    "solan": {"place": "Solan", "lat": Decimal("30.9084"), "lng": Decimal("77.0999"), "district": "Solan"},
+    "rampur bushahr": {"place": "Rampur Bushahr", "lat": Decimal("31.3967"), "lng": Decimal("77.6322"), "district": "Shimla"},
+    "reckong peo": {"place": "Reckong Peo", "lat": Decimal("31.5404"), "lng": Decimal("78.2747"), "district": "Kinnaur"},
+    "keylong": {"place": "Keylong", "lat": Decimal("32.5710"), "lng": Decimal("77.0320"), "district": "Lahaul & Spiti"},
+}
+
+
 def get_place_by_name(name, items=None):
-    if items is None:
-        exact_match = table.get_item(
-            Key={
-                "PK": f"PLACE#{name.strip()}",
-                "SK": "METADATA",
-            },
-            ConsistentRead=True,
-        ).get("Item")
-        if exact_match and not is_simulated_record(exact_match):
-            return exact_match
-        items = get_all_items()
+    if not isinstance(name, str) or not name.strip():
+        return None
     target = name.strip().casefold()
+    if items is None:
+        try:
+            exact_match = table.get_item(
+                Key={
+                    "PK": f"PLACE#{name.strip()}",
+                    "SK": "METADATA",
+                },
+                ConsistentRead=True,
+            ).get("Item")
+            if exact_match and not is_simulated_record(exact_match):
+                return exact_match
+        except Exception:
+            pass
+        items = get_all_items()
 
     for item in items:
         if not item.get("PK", "").startswith("PLACE#"):
@@ -358,6 +388,12 @@ def get_place_by_name(name, items=None):
         place_name = item.get("place") or item.get("name")
         if isinstance(place_name, str) and place_name.strip().casefold() == target:
             return item
+
+    if target in FALLBACK_PLACES:
+        fallback = dict(FALLBACK_PLACES[target])
+        fallback["PK"] = f"PLACE#{fallback['place']}"
+        fallback["SK"] = "METADATA"
+        return fallback
 
     return None
 
@@ -451,8 +487,10 @@ def associate_report_with_incident(report, is_existing=False, items=None):
         raise ValueError("Place is not in the configured location list.")
 
     report["place"] = place_record.get("place") or place_record.get("name")
-    report["lat"] = place_record.get("lat")
-    report["lng"] = place_record.get("lng")
+    if report.get("lat") is None:
+        report["lat"] = place_record.get("lat")
+    if report.get("lng") is None:
+        report["lng"] = place_record.get("lng")
     report_time = parse_iso_datetime(report["created_at"])
     matching_incidents = []
 
@@ -461,9 +499,18 @@ def associate_report_with_incident(report, is_existing=False, items=None):
             continue
         if incident.get("type", "").casefold() != report["type"].casefold():
             continue
-        if incident.get("place", "").casefold() != report["place"].casefold():
-            continue
         if incident.get("status") == "Rejected":
+            continue
+
+        same_place = incident.get("place", "").casefold() == report["place"].casefold()
+        dist_km = None
+        try:
+            dist_km = distance_km(report, incident)
+        except Exception:
+            dist_km = None
+
+        is_nearby = same_place or (dist_km is not None and dist_km <= INCIDENT_CLUSTER_RADIUS_KM)
+        if not is_nearby:
             continue
 
         incident_time = parse_iso_datetime(
@@ -474,21 +521,28 @@ def associate_report_with_incident(report, is_existing=False, items=None):
         if not incident_time or not report_time:
             continue
 
-        distance = abs(report_time - incident_time)
-        if distance <= timedelta(minutes=REPORT_GROUPING_WINDOW_MINUTES):
-            matching_incidents.append((distance, incident))
+        time_delta = abs(report_time - incident_time)
+        if time_delta <= timedelta(minutes=REPORT_GROUPING_WINDOW_MINUTES):
+            distance_metric = dist_km if dist_km is not None else (0.0 if same_place else 999.0)
+            matching_incidents.append((distance_metric, time_delta, dist_km, incident))
 
-    matching_incidents.sort(key=lambda candidate: candidate[0])
+    matching_incidents.sort(key=lambda candidate: (candidate[0], candidate[1]))
 
     if matching_incidents:
-        distance, incident = matching_incidents[0]
+        _, time_delta, dist_km, incident = matching_incidents[0]
         incident_id = incident["incident_id"]
         report["verification_status"] = "Corroborated"
+        same_place = incident.get("place", "").casefold() == report["place"].casefold()
+        loc_str = (
+            report["place"]
+            if same_place
+            else f"{report['place']} ({dist_km:.1f} km from {incident.get('place')})"
+        )
         report["grouping_reason"] = (
             f"Grouped with {incident_id}: same type ({report['type']}) and "
-            f"location ({report['place']}); report arrived within "
+            f"location ({loc_str}); report arrived within "
             f"{REPORT_GROUPING_WINDOW_MINUTES} minutes "
-            f"({int(distance.total_seconds())} seconds) of its latest "
+            f"({int(time_delta.total_seconds())} seconds) of its latest "
             "associated report."
         )
         report["incident_id"] = incident_id
@@ -503,6 +557,14 @@ def associate_report_with_incident(report, is_existing=False, items=None):
             (current_severity, report["severity"]),
             key=lambda value: severity_order.get(value, 0)
         )
+        incident["report_ids"] = list(incident.get("report_ids", [])) + [report["report_id"]]
+        incident["report_count"] = int(incident.get("report_count", 0)) + 1
+        incident["status"] = incident_status
+        incident["severity"] = severity
+        incident["updated_at"] = report["created_at"]
+        incident["last_report_at"] = report["created_at"]
+        incident["grouping_reason"] = report["grouping_reason"]
+        report["_incident"] = incident
         incident_operation = {
             "Update": {
                 "TableName": table.name,
@@ -542,11 +604,13 @@ def associate_report_with_incident(report, is_existing=False, items=None):
             f"a report within {REPORT_GROUPING_WINDOW_MINUTES} minutes."
         )
         incident = {
+            "PK": f"INCIDENT#{incident_id}",
+            "SK": "METADATA",
             "incident_id": incident_id,
             "type": report["type"],
             "place": report["place"],
-            "lat": place_record.get("lat"),
-            "lng": place_record.get("lng"),
+            "lat": report.get("lat") or place_record.get("lat"),
+            "lng": report.get("lng") or place_record.get("lng"),
             "severity": report["severity"],
             "status": "Unverified",
             "summary": report["original_text"],
@@ -558,6 +622,7 @@ def associate_report_with_incident(report, is_existing=False, items=None):
             "last_report_at": report["created_at"],
             "data_classification": "operational"
         }
+        report["_incident"] = incident
         incident_operation = {
             "Put": {
                 "TableName": table.name,
@@ -2280,12 +2345,23 @@ def submit_report():
 
     now_iso = datetime.now(timezone.utc).isoformat()
 
+    custom_lat = payload.get("lat")
+    custom_lng = payload.get("lng")
+    report_lat = place_record.get("lat")
+    report_lng = place_record.get("lng")
+    if custom_lat is not None and custom_lng is not None:
+        try:
+            report_lat = Decimal(str(custom_lat))
+            report_lng = Decimal(str(custom_lng))
+        except Exception:
+            pass
+
     new_report = {
         "report_id": report_id,
         "source": "Citizen Field Report",
         "original_text": original_text,
-        "lat": place_record.get("lat"),
-        "lng": place_record.get("lng"),
+        "lat": report_lat,
+        "lng": report_lng,
         "type": inc_type,
         "place": place,
         "severity": severity,
@@ -2322,17 +2398,12 @@ def submit_report():
     try:
         mark_brief_needs_review()
     except Exception:
-        app.logger.exception("Report saved but current brief could not be marked for review")
-        return jsonify({
-            "ok": False,
-            "error": (
-                "The report was saved, but the current brief could not be "
-                "marked for review."
-            ),
-            "report": public_report(new_report),
-        }), 500
+        app.logger.warning("Report saved but current brief could not be marked for review: %s", report_id)
 
-    return jsonify({"ok": True, "report": public_report(new_report)}), 201
+    resp_data = {"ok": True, "report": public_report(new_report)}
+    if "_incident" in new_report and new_report["_incident"]:
+        resp_data["incident"] = convert_numbers(new_report["_incident"])
+    return jsonify(resp_data), 201
 
 
 @app.route("/brief/generate", methods=["POST"])

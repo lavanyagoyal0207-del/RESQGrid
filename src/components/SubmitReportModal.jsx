@@ -190,6 +190,7 @@ export default function SubmitReportModal({
         });
 
         if (!result.ok) {
+          setIdempotencyKey(createSubmissionId());
           setSubmitSuccess({
             message: result.error || 'Voice upload failed.',
             endpoint: 'POST /voice-report',
@@ -221,6 +222,7 @@ export default function SubmitReportModal({
         setIdempotencyKey(createSubmissionId());
         return;
       } catch (error) {
+        setIdempotencyKey(createSubmissionId());
         setSubmitSuccess({
           message: error.message || 'Something went wrong.',
           endpoint: 'POST /voice-report',
@@ -278,6 +280,7 @@ export default function SubmitReportModal({
       });
 
       if (!result?.ok) {
+        setIdempotencyKey(createSubmissionId());
         setSubmitSuccess({
           message: result?.error || 'Report submission failed.',
           endpoint: 'POST /report',
@@ -300,6 +303,7 @@ export default function SubmitReportModal({
       setDemoSampleSelected(false);
       setIdempotencyKey(createSubmissionId());
     } catch (error) {
+      setIdempotencyKey(createSubmissionId());
       setSubmitSuccess({
         message: error.message || 'Something went wrong.',
         endpoint: 'POST /report',

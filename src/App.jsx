@@ -8,6 +8,7 @@ import {
   loginCitizen,
   verifyOperatorCredentials,
   verifyReport,
+  confirmIncident,
   generateSituationBrief,
   approveSituationBrief,
   fetchReportAudio,
@@ -22,6 +23,7 @@ import TopBar from './components/TopBar';
 import DarkMap from './components/DarkMap';
 import IncidentList from './components/IncidentList';
 import IncidentDetail from './components/IncidentDetail';
+import IncomingReportsQueue from './components/IncomingReportsQueue';
 import BriefPanel from './components/BriefPanel';
 import SubmitReportModal from './components/SubmitReportModal';
 import OperatorAccessPanel from './components/OperatorAccessPanel';
@@ -66,6 +68,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeView, setActiveView] = useState('home');
+  const [evidenceTab, setEvidenceTab] = useState('incidents');
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
 
   const [apiMode, setApiMode] = useState('connecting');
@@ -73,8 +76,22 @@ export default function App() {
   const [apiError, setApiError] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
-  const [operatorCredentials, setOperatorCredentials] = useState(null);
-  const [citizenUser, setCitizenUser] = useState(null);
+  const [operatorCredentials, setOperatorCredentials] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('resqgrid_operator_creds');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [citizenUser, setCitizenUser] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('resqgrid_citizen_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
   const [isApprovingBrief, setIsApprovingBrief] = useState(false);
   const [toastBanner, setToastBanner] = useState(null);
@@ -254,11 +271,17 @@ export default function App() {
       triggerToast('Registration Failed', result.error, 'red');
       return result;
     }
-    setCitizenUser({
+    const citizenObj = {
       ...result.data.user,
       username: userData.email,
       password: userData.password,
-    });
+    };
+    setCitizenUser(citizenObj);
+    try {
+      sessionStorage.setItem('resqgrid_citizen_user', JSON.stringify(citizenObj));
+    } catch {
+      // Ignore session storage errors
+    }
     triggerToast(
       'Registration Successful',
       `Welcome, ${result.data.user.name}! Your citizen account is ready.`,
@@ -274,11 +297,17 @@ export default function App() {
       triggerToast('Citizen Sign-in Failed', result.error, 'red');
       return result;
     }
-    setCitizenUser({
+    const citizenObj = {
       ...result.data.user,
       username: credentials.email || credentials.username || credentials.identifier,
       password: credentials.password,
-    });
+    };
+    setCitizenUser(citizenObj);
+    try {
+      sessionStorage.setItem('resqgrid_citizen_user', JSON.stringify(citizenObj));
+    } catch {
+      // Ignore session storage errors
+    }
     triggerToast(
       'Citizen Signed In',
       `Welcome back, ${result.data.user.name}.`,
@@ -290,6 +319,11 @@ export default function App() {
 
   const handleCitizenLogout = () => {
     setCitizenUser(null);
+    try {
+      sessionStorage.removeItem('resqgrid_citizen_user');
+    } catch {
+      // Ignore
+    }
     triggerToast('Signed Out', 'You have been signed out of your citizen account.', 'slate');
   };
 
@@ -305,6 +339,11 @@ export default function App() {
       role: result.data.role || 'operator',
     };
     setOperatorCredentials(authenticatedCredentials);
+    try {
+      sessionStorage.setItem('resqgrid_operator_creds', JSON.stringify(authenticatedCredentials));
+    } catch {
+      // Ignore
+    }
     await refreshDashboardData(false, authenticatedCredentials);
     triggerToast(
       'Operator Signed In',
@@ -316,6 +355,11 @@ export default function App() {
 
   const handleOperatorLogout = () => {
     setOperatorCredentials(null);
+    try {
+      sessionStorage.removeItem('resqgrid_operator_creds');
+    } catch {
+      // Ignore
+    }
     setIncidents([]);
     setReports([]);
     setPlaces(mockData.places || []);
@@ -514,6 +558,23 @@ export default function App() {
     }
   };
 
+  const handleConfirmIncident = async (incidentId) => {
+    if (!requireOperator()) return { ok: false };
+    setIsSubmittingAction(true);
+    try {
+      const result = await confirmIncident(incidentId, operatorCredentials);
+      if (!result.ok) {
+        triggerToast('Incident Confirmation Failed', result.error, 'red');
+        return result;
+      }
+      await refreshDashboardData();
+      triggerToast('Incident Confirmed', `Incident ${incidentId} confirmed by operator.`, 'emerald');
+      return result;
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
   // Submit report through Flask API
   const handleSubmitReport = async ({
     original_text,
@@ -574,7 +635,20 @@ export default function App() {
       };
     }
 
-    // Only refresh dashboard if operator credentials are present
+    // Immediately update local state so the saved report is visible
+    setReports((prev) => [savedReport, ...prev.filter((r) => r.report_id !== savedReport.report_id)]);
+    if (res.data?.incident) {
+      const savedInc = res.data.incident;
+      setIncidents((prev) => {
+        const exists = prev.some((i) => i.incident_id === savedInc.incident_id);
+        if (exists) {
+          return prev.map((i) => (i.incident_id === savedInc.incident_id ? savedInc : i));
+        }
+        return [savedInc, ...prev];
+      });
+    }
+
+    // Refresh dashboard if operator credentials are present
     if (operatorCredentials) {
       const snapshot = await refreshDashboardData();
       if (snapshot.source !== 'flask-api') {
@@ -636,6 +710,8 @@ export default function App() {
         error: 'Saved voice report missing from backend response.',
       };
     }
+
+    setReports((prev) => [savedReport, ...prev.filter((r) => r.report_id !== savedReport.report_id)]);
 
     if (operatorCredentials) {
       const snapshot = await refreshDashboardData();
@@ -701,6 +777,7 @@ export default function App() {
       reports={reports}
       operator={operatorCanMutate ? operatorCredentials.username : null}
       onVerifyReport={handleVerifyReport}
+      onConfirmIncident={handleConfirmIncident}
       onLoadReportAudio={handleLoadReportAudio}
       onResponseStatusChange={handleResponseStatusChange}
       isSubmittingAction={isSubmittingAction}
@@ -844,7 +921,16 @@ export default function App() {
                         : 'Waiting for first sync'}
                   </span>
                   {incomingReportIds.length > 0 && (
-                    <span className="rq-new-reports">{incomingReportIds.length} new reports</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveView('evidence');
+                        setEvidenceTab('reports');
+                      }}
+                      className="rq-new-reports cursor-pointer hover:underline border-0 bg-transparent p-0 text-inherit font-inherit"
+                    >
+                      {incomingReportIds.length} new reports
+                    </button>
                   )}
                 </div>
               </div>
@@ -869,11 +955,18 @@ export default function App() {
                       <strong>{hasOperationalData ? criticalIncidentCount : '—'}</strong>
                       <small>Requires operator attention</small>
                     </article>
-                    <article className="rq-metric-card">
+                    <article
+                      className="rq-metric-card cursor-pointer hover:border-[#FF6B35]/50 transition"
+                      onClick={() => {
+                        setActiveView('evidence');
+                        setEvidenceTab('reports');
+                      }}
+                      title="Click to open verification queue"
+                    >
                       <span className="rq-metric-icon amber"><ShieldCheck size={17} /></span>
                       <span className="rq-metric-label">Unverified reports</span>
                       <strong>{hasOperationalData ? awaitingReviewCount : '—'}</strong>
-                      <small>Require human review</small>
+                      <small>Click to open verification queue</small>
                     </article>
                     <article className="rq-metric-card">
                       <span className="rq-metric-icon green"><PackageCheck size={17} /></span>
@@ -950,15 +1043,71 @@ export default function App() {
               )}
 
               {activeView === 'evidence' && (
-                <section className="rq-evidence-grid">
-                  <div className="rq-feed-frame rq-evidence-queue">
-                    <div className="rq-section-heading">
-                      <div><p className="rq-eyebrow">INCIDENT QUEUE</p><h2>Select an incident</h2></div>
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 bg-[#1a0b2e]/90 p-2 rounded-xl border border-purple-400/20">
+                    <div className="flex items-center gap-1.5 rounded-lg bg-[#120721] p-1 border border-purple-300/20">
+                      <button
+                        type="button"
+                        onClick={() => setEvidenceTab('incidents')}
+                        className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all ${
+                          evidenceTab === 'incidents'
+                            ? 'bg-[#FF6B35] text-white shadow'
+                            : 'text-purple-200/75 hover:text-white hover:bg-[#2D1B4E]/60'
+                        }`}
+                      >
+                        Incident Queue ({filteredIncidents.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEvidenceTab('reports')}
+                        className={`rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5 ${
+                          evidenceTab === 'reports'
+                            ? 'bg-[#FF6B35] text-white shadow'
+                            : 'text-purple-200/75 hover:text-white hover:bg-[#2D1B4E]/60'
+                        }`}
+                      >
+                        <span>Incoming Reports & Verification ({reports.length})</span>
+                        {awaitingReviewCount > 0 && (
+                          <span className="rounded-full bg-red-500/90 text-white text-[10px] px-1.5 py-0.2">
+                            {awaitingReviewCount}
+                          </span>
+                        )}
+                      </button>
                     </div>
-                    {renderIncidentList()}
+
+                    <div className="text-xs text-purple-300/70 hidden sm:block">
+                      {evidenceTab === 'incidents'
+                        ? 'Select an incident to review clustered reports, assign resources, and confirm.'
+                        : 'Review citizen submissions, inspect AI grouping rationale, and corroborate.'}
+                    </div>
                   </div>
-                  <div>{renderIncidentDetail()}</div>
-                </section>
+
+                  {evidenceTab === 'incidents' ? (
+                    <section className="rq-evidence-grid">
+                      <div className="rq-feed-frame rq-evidence-queue">
+                        <div className="rq-section-heading">
+                          <div><p className="rq-eyebrow">INCIDENT QUEUE</p><h2>Select an incident</h2></div>
+                        </div>
+                        {renderIncidentList()}
+                      </div>
+                      <div>{renderIncidentDetail()}</div>
+                    </section>
+                  ) : (
+                    <IncomingReportsQueue
+                      reports={reports}
+                      incidents={incidents}
+                      operator={operatorCanMutate ? operatorCredentials.username : null}
+                      onVerifyReport={handleVerifyReport}
+                      onConfirmIncident={handleConfirmIncident}
+                      onSelectIncident={(id) => {
+                        setSelectedIncidentId(id);
+                        setEvidenceTab('incidents');
+                      }}
+                      onLoadReportAudio={handleLoadReportAudio}
+                      isSubmittingAction={isSubmittingAction}
+                    />
+                  )}
+                </div>
               )}
 
               {activeView === 'operations' && (

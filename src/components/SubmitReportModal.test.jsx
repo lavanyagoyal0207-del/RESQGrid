@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import SubmitReportModal from './SubmitReportModal';
 
 describe('SubmitReportModal', () => {
@@ -142,5 +142,205 @@ describe('SubmitReportModal', () => {
       'Emergency Report Submitted Successfully',
     );
     expect(screen.getByText('REP-CITIZEN-12345')).toBeInTheDocument();
+  });
+
+  describe('Direct Microphone Recording', () => {
+    let originalMediaDevices;
+    let originalMediaRecorder;
+    let originalCreateObjectURL;
+    let originalRevokeObjectURL;
+    let mockTrackStop;
+
+    class MockMediaRecorder {
+      constructor(stream, options = {}) {
+        this.stream = stream;
+        this.options = options;
+        this.state = 'inactive';
+        this.mimeType = options.mimeType || 'audio/webm';
+        this.ondataavailable = null;
+        this.onstop = null;
+      }
+      start() {
+        this.state = 'recording';
+      }
+      pause() {
+        this.state = 'paused';
+      }
+      resume() {
+        this.state = 'recording';
+      }
+      stop() {
+        this.state = 'inactive';
+        if (this.ondataavailable) {
+          this.ondataavailable({ data: new Blob(['recorded voice data'], { type: 'audio/webm' }) });
+        }
+        if (this.onstop) {
+          this.onstop();
+        }
+      }
+      static isTypeSupported() {
+        return true;
+      }
+    }
+
+    beforeEach(() => {
+      originalMediaDevices = navigator.mediaDevices;
+      originalMediaRecorder = window.MediaRecorder;
+      originalCreateObjectURL = window.URL.createObjectURL;
+      originalRevokeObjectURL = window.URL.revokeObjectURL;
+
+      mockTrackStop = vi.fn();
+      const mockStream = {
+        getTracks: () => [{ stop: mockTrackStop }],
+      };
+
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: {
+          getUserMedia: vi.fn().mockResolvedValue(mockStream),
+        },
+        writable: true,
+        configurable: true,
+      });
+
+      window.MediaRecorder = MockMediaRecorder;
+      window.URL.createObjectURL = vi.fn().mockReturnValue('blob:http://localhost/test-audio');
+      window.URL.revokeObjectURL = vi.fn();
+    });
+
+    afterEach(() => {
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: originalMediaDevices,
+        writable: true,
+        configurable: true,
+      });
+      window.MediaRecorder = originalMediaRecorder;
+      window.URL.createObjectURL = originalCreateObjectURL;
+      window.URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
+    it('records audio directly from microphone without opening file chooser', async () => {
+      const user = userEvent.setup();
+      render(
+        <SubmitReportModal
+          isOpen
+          onClose={vi.fn()}
+          places={[{ place: 'Mandi', district: 'Mandi' }]}
+          citizenUser={mockCitizen}
+        />,
+      );
+
+      // Verify file input is NOT clicked/triggered by Start Recording
+      const fileInput = screen.getByLabelText('Upload audio recording');
+      const fileClickSpy = vi.spyOn(fileInput, 'click');
+
+      const startBtn = screen.getByRole('button', { name: /Start Recording/i });
+      await user.click(startBtn);
+
+      expect(fileClickSpy).not.toHaveBeenCalled();
+      expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({ audio: true });
+
+      // Verify recording UI appears: Stop Recording & Pause
+      expect(screen.getByRole('button', { name: /Stop Recording/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Pause/i })).toBeInTheDocument();
+
+      // Pause and resume
+      await user.click(screen.getByRole('button', { name: /Pause/i }));
+      expect(screen.getByText(/PAUSED/)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: /Resume/i }));
+      expect(screen.getByText(/REC/)).toBeInTheDocument();
+
+      // Stop recording
+      await user.click(screen.getByRole('button', { name: /Stop Recording/i }));
+
+      // Preview audio player and discard button are now rendered
+      expect(screen.getByLabelText('Recorded voice note preview')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Discard & Re-record/i })).toBeInTheDocument();
+      expect(screen.getByText(/Recorded Audio Ready/i)).toBeInTheDocument();
+    });
+
+    it('submits recorded audio blob to onSubmitVoiceReport', async () => {
+      const user = userEvent.setup();
+      const submitVoice = vi.fn().mockResolvedValue({
+        ok: true,
+        data: {
+          report: {
+            report_id: 'REP-VOICE-12345',
+            place: 'Mandi',
+            type: 'Flood',
+            severity: 'High',
+            transcription_status: 'Completed',
+          },
+        },
+      });
+
+      render(
+        <SubmitReportModal
+          isOpen
+          onClose={vi.fn()}
+          places={[{ place: 'Mandi', district: 'Mandi' }]}
+          onSubmitVoiceReport={submitVoice}
+          citizenUser={mockCitizen}
+        />,
+      );
+
+      // Start and stop recording
+      await user.click(screen.getByRole('button', { name: /Start Recording/i }));
+      await user.click(screen.getByRole('button', { name: /Stop Recording/i }));
+
+      // Submit
+      await user.click(screen.getByRole('button', { name: 'Submit Report' }));
+
+      await waitFor(() => expect(submitVoice).toHaveBeenCalledOnce());
+      const [audioArg, metaArg] = submitVoice.mock.calls[0];
+      expect(audioArg).toBeInstanceOf(File);
+      expect(audioArg.name).toMatch(/mic_recording_.*\.webm/);
+      expect(audioArg.type).toBe('audio/webm');
+      expect(metaArg.place).toBe('Mandi');
+      expect(metaArg.reporter_email).toBe('jane@example.com');
+    });
+
+    it('handles microphone permission denied error', async () => {
+      const user = userEvent.setup();
+      const notAllowedError = new Error('Permission denied');
+      notAllowedError.name = 'NotAllowedError';
+      navigator.mediaDevices.getUserMedia = vi.fn().mockRejectedValue(notAllowedError);
+
+      render(
+        <SubmitReportModal
+          isOpen
+          onClose={vi.fn()}
+          places={[{ place: 'Mandi', district: 'Mandi' }]}
+          citizenUser={mockCitizen}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /Start Recording/i }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Microphone permission denied',
+      );
+    });
+
+    it('handles no microphone device found error', async () => {
+      const user = userEvent.setup();
+      const notFoundError = new Error('Device not found');
+      notFoundError.name = 'NotFoundError';
+      navigator.mediaDevices.getUserMedia = vi.fn().mockRejectedValue(notFoundError);
+
+      render(
+        <SubmitReportModal
+          isOpen
+          onClose={vi.fn()}
+          places={[{ place: 'Mandi', district: 'Mandi' }]}
+          citizenUser={mockCitizen}
+        />,
+      );
+
+      await user.click(screen.getByRole('button', { name: /Start Recording/i }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'No microphone detected',
+      );
+    });
   });
 });

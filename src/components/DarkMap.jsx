@@ -49,11 +49,13 @@ export default function DarkMap({
   onTypeFilterChange,
   verificationFilter,
   onVerificationFilterChange,
+  riskAssessment,
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersLayerRef = useRef(null);
   const [hoveredItem, setHoveredItem] = useState(null);
+  const [showHotspots, setShowHotspots] = useState(true);
   const incidentTypes = [...new Set(incidents.map((incident) => incident.type).filter(Boolean))].sort();
 
   useEffect(() => {
@@ -114,6 +116,51 @@ export default function DarkMap({
       marker.addTo(layerGroup);
     });
 
+    // Render computed risk hotspots from authorized risk assessment if enabled
+    if (showHotspots && Array.isArray(riskAssessment?.locations)) {
+      const placeCoordMap = new Map();
+      (places || []).forEach((p) => {
+        if (p && isValidCoordinate(p.lat, p.lng)) {
+          const placeKey = String(p.place || p.name || '').trim().toLowerCase();
+          if (placeKey) {
+            placeCoordMap.set(placeKey, [Number(p.lat), Number(p.lng)]);
+          }
+        }
+      });
+
+      riskAssessment.locations.filter((loc) => loc && loc.requires_attention).forEach((loc) => {
+        let coords = null;
+        if (isValidCoordinate(loc.lat, loc.lng)) {
+          coords = [Number(loc.lat), Number(loc.lng)];
+        } else if (loc.place && typeof loc.place === 'string') {
+          const placeKey = loc.place.trim().toLowerCase();
+          coords = placeCoordMap.get(placeKey) || null;
+        }
+
+        if (coords) {
+          const hotspotZone = L.circle(coords, {
+            radius: 8000,
+            color: '#ff7518',
+            weight: 1.5,
+            dashArray: '6 6',
+            fillColor: '#ff7518',
+            fillOpacity: 0.1,
+          });
+          const reasons = Array.isArray(loc.reasons) && loc.reasons.length
+            ? loc.reasons
+            : ['Operational density threshold met'];
+          hotspotZone.bindTooltip(
+            createTooltip(`Advisory Risk Hotspot · ${loc.place || 'Sector'}`, [
+              `${loc.incident_count ?? 0} active incident(s) · ${loc.report_count ?? 0} report(s)`,
+              ...reasons,
+            ]),
+            { direction: 'top', className: 'resq-map-tooltip', opacity: 1 }
+          );
+          hotspotZone.addTo(layerGroup);
+        }
+      });
+    }
+
     const eligibleIncidents = incidents
       .filter((incident) => incident.status !== 'Rejected')
       .filter((incident) => severityFilter === 'ALL' || incident.severity === severityFilter)
@@ -156,7 +203,7 @@ export default function DarkMap({
       );
       const selected = incident.incident_id === selectedIncidentId;
       const severityKey = String(incident.severity || 'low').toLowerCase();
-      if (reportCount > 1) {
+      if (showHotspots && reportCount > 1) {
         const haloRadius = severity.size + (selected ? 4 : 0) + Math.min(reportCount * 2, 16);
         const halo = L.circleMarker([Number(incident.lat), Number(incident.lng)], {
           radius: haloRadius,
@@ -253,6 +300,8 @@ export default function DarkMap({
     severityFilter,
     typeFilter,
     verificationFilter,
+    showHotspots,
+    riskAssessment,
   ]);
 
   useEffect(() => {
@@ -272,47 +321,47 @@ export default function DarkMap({
   };
 
   return (
-    <div className="rq-map-panel relative flex h-full min-h-[420px] w-full flex-col overflow-hidden rounded-2xl border border-purple-400/20 bg-[#120721] shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
+    <div className="rq-map-panel relative flex h-full min-h-[440px] w-full flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-xl">
       <div className="pointer-events-none absolute left-3 right-3 top-3 z-[400] flex flex-wrap items-start justify-between gap-2">
-        <div className="rq-map-overlay-card pointer-events-auto rounded-xl border border-purple-400/25 bg-[#1a0b2e]/95 px-3 py-2 shadow-lg">
-          <h2 className="font-display text-sm font-bold uppercase tracking-wider text-white">
-            Himachal Pradesh · {places.length} fixed locations
+        <div className="rq-map-overlay-card pointer-events-auto rounded-xl border border-slate-700/80 bg-slate-900/95 px-3.5 py-2 shadow-md backdrop-blur-md">
+          <h2 className="font-bold text-xs uppercase tracking-wider text-white">
+            Himachal Pradesh · {places.length} Monitored Sectors
           </h2>
-          <p className="text-xs text-purple-100/85">
-            Incident markers use stored coordinates; dotted outline indicates unverified
+          <p className="text-[11px] text-slate-400">
+            Geospatial markers use verified sector coordinates; dashed rings indicate advisory clusters
           </p>
         </div>
 
-        <div className="rq-map-overlay-card pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5 rounded-xl border border-purple-400/25 bg-[#1a0b2e]/95 p-2 shadow-lg">
-          <label className="text-xs text-purple-100">
+        <div className="rq-map-overlay-card pointer-events-auto flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/95 p-2 shadow-md backdrop-blur-md">
+          <label className="text-[11px] font-medium text-slate-300 flex items-center">
             Severity
             <select
               value={severityFilter}
               onChange={(event) => onSeverityFilterChange(event.target.value)}
-              className="ml-1 rounded bg-[#120721] px-1.5 py-1 text-xs text-white"
+              className="ml-1.5 rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-xs text-white focus:outline-none focus:border-orange-500"
             >
               {['ALL', 'Critical', 'High', 'Medium', 'Low'].map((value) => (
                 <option key={value} value={value}>{value === 'ALL' ? 'All' : value}</option>
               ))}
             </select>
           </label>
-          <label className="text-xs text-purple-100">
+          <label className="text-[11px] font-medium text-slate-300 flex items-center">
             Type
             <select
               value={typeFilter}
               onChange={(event) => onTypeFilterChange(event.target.value)}
-              className="ml-1 max-w-28 rounded bg-[#120721] px-1.5 py-1 text-xs text-white"
+              className="ml-1.5 max-w-28 rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-xs text-white focus:outline-none focus:border-orange-500"
             >
               <option value="ALL">All</option>
               {incidentTypes.map((type) => <option key={type}>{type}</option>)}
             </select>
           </label>
-          <label className="text-xs text-purple-100">
+          <label className="text-[11px] font-medium text-slate-300 flex items-center">
             Verification
             <select
               value={verificationFilter}
               onChange={(event) => onVerificationFilterChange(event.target.value)}
-              className="ml-1 rounded bg-[#120721] px-1.5 py-1 text-xs text-white"
+              className="ml-1.5 rounded-md bg-slate-950 border border-slate-700 px-2 py-1 text-xs text-white focus:outline-none focus:border-orange-500"
             >
               {['ALL', 'Confirmed', 'Corroborated', 'Unverified', 'Rejected'].map((value) => (
                 <option key={value}>{value}</option>
@@ -321,32 +370,47 @@ export default function DarkMap({
           </label>
           <button
             type="button"
+            onClick={() => setShowHotspots((prev) => !prev)}
+            className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition ${
+              showHotspots
+                ? 'border-orange-500/50 bg-orange-500/15 text-orange-400 shadow-sm'
+                : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+            title="Toggle computed geographic risk hotspots and cluster indicators"
+          >
+            Hotspots: {showHotspots ? 'ON' : 'OFF'}
+          </button>
+          <button
+            type="button"
             onClick={handleResetView}
-            className="rounded-lg border border-purple-300/20 bg-[#2D1B4E]/80 px-2 py-1 text-xs text-purple-50"
+            className="rounded-md border border-slate-700 bg-slate-800 hover:bg-slate-700 px-2.5 py-1 text-xs text-slate-200 font-medium transition"
           >
             Reset
           </button>
         </div>
       </div>
 
-      <div ref={mapContainerRef} className="z-10 min-h-[420px] w-full flex-1" />
+      <div ref={mapContainerRef} className="z-10 min-h-[440px] w-full flex-1" />
 
-      <div className="rq-map-legend relative z-[400] flex flex-wrap items-center justify-between gap-2 border-t border-purple-400/20 bg-[#1a0b2e]/95 px-4 py-2.5 text-xs">
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-purple-50">
+      <div className="rq-map-legend relative z-[400] flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 bg-slate-950/95 px-4 py-2.5 text-xs">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-300">
           {Object.entries(SEVERITY_STYLES).map(([name, style]) => (
             <span key={name} className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: style.color }} />
               {name}
             </span>
           ))}
-          <span className="text-emerald-300">Green outline: human-confirmed</span>
-          <span className="text-sky-300">Blue outline: corroborated, not confirmed</span>
-          <span className="text-slate-200">Dotted outline: unverified</span>
+          <span className="text-emerald-400 font-medium">Green: confirmed</span>
+          <span className="text-sky-400 font-medium">Blue: corroborated</span>
+          <span className="text-slate-400">Dotted: unverified</span>
+          <span className="text-orange-400 font-medium">Orange halo: clustered hotspot</span>
         </div>
-        <span className="max-w-full truncate font-mono text-purple-200/75">
+        <span className="max-w-full truncate font-mono text-slate-400 text-[11px]">
           {hoveredItem
             ? `${hoveredItem.label} · ${hoveredItem.lat.toFixed(4)}, ${hoveredItem.lng.toFixed(4)}${hoveredItem.detail ? ` · ${hoveredItem.detail}` : ''}`
-            : 'Select an incident marker to open its evidence and response details'}
+            : incidents.length === 0
+              ? 'No live incident records loaded · Sign in as operator to view active incident markers'
+              : 'Select an incident marker to open its evidence and response details'}
         </span>
       </div>
     </div>

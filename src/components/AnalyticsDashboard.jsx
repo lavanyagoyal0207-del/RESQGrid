@@ -2,16 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { fetchOperationalAnalytics } from '../services/api';
 
 const PANEL =
-  'rq-intelligence-panel rounded-2xl border p-4';
+  'rq-intelligence-panel rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-xl';
 const INPUT =
-  'rounded-lg border border-purple-300/25 bg-[#120721] px-3 py-2 text-sm text-white';
+  'rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500 transition-colors';
 
 function Metric({ label, value, detail }) {
   return (
-    <article className="rounded-xl border border-purple-300/15 bg-[#120721] p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-purple-300/75">{label}</p>
+    <article className="rounded-xl border border-slate-800 bg-slate-900 p-3.5 shadow-sm">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
       <p className="mt-1 font-display text-2xl font-bold text-white">{value ?? '—'}</p>
-      {detail && <p className="mt-1 text-[10px] text-purple-200/65">{detail}</p>}
+      {detail && <p className="mt-1 text-[10px] text-slate-500">{detail}</p>}
     </article>
   );
 }
@@ -27,12 +27,12 @@ function CountBars({ title, values, emptyText = 'No stored values in this filter
           {entries.map(([label, count]) => (
             <div key={label}>
               <div className="mb-1 flex justify-between gap-3 text-xs">
-                <span className="truncate text-purple-100">{label}</span>
-                <strong className="text-orange-200">{count}</strong>
+                <span className="truncate text-slate-200">{label}</span>
+                <strong className="text-orange-400 font-mono">{count}</strong>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-[#120721]">
+              <div className="h-2 overflow-hidden rounded-full bg-slate-900">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-[#FF6B35] to-amber-300"
+                  className="h-full rounded-full bg-gradient-to-r from-orange-600 to-amber-500"
                   style={{ width: `${Math.min(100, (Number(count) / maximum) * 100)}%` }}
                 />
               </div>
@@ -40,7 +40,7 @@ function CountBars({ title, values, emptyText = 'No stored values in this filter
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-xs text-purple-200/65">{emptyText}</p>
+        <p className="mt-3 text-xs text-slate-500">{emptyText}</p>
       )}
     </section>
   );
@@ -72,11 +72,11 @@ function SeverityTrend({ values }) {
               return (
                 <div key={day}>
                   <div className="mb-1 flex justify-between text-xs">
-                    <span className="text-purple-100">{day}</span>
-                    <strong className="text-orange-200">{total}</strong>
+                    <span className="text-slate-200">{day}</span>
+                    <strong className="text-orange-400 font-mono">{total}</strong>
                   </div>
                   <div
-                    className="flex h-3 overflow-hidden rounded-full bg-[#120721]"
+                    className="flex h-3 overflow-hidden rounded-full bg-slate-900"
                     role="img"
                     aria-label={`${day}: ${Object.entries(counts || {}).map(([severity, count]) => `${severity} ${count}`).join(', ')}`}
                   >
@@ -96,7 +96,7 @@ function SeverityTrend({ values }) {
               );
             })}
           </div>
-          <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-purple-200/75">
+          <div className="mt-3 flex flex-wrap gap-3 text-[10px] text-slate-400">
             {severities.map(([severity, color]) => (
               <span key={severity} className="flex items-center gap-1">
                 <span className={`h-2 w-2 rounded-full ${color}`} />
@@ -106,7 +106,7 @@ function SeverityTrend({ values }) {
           </div>
         </>
       ) : (
-        <p className="mt-3 text-xs text-purple-200/65">No incident severity history is stored for this filter.</p>
+        <p className="mt-3 text-xs text-slate-500">No incident severity history is stored for this filter.</p>
       )}
     </section>
   );
@@ -120,6 +120,12 @@ export default function AnalyticsDashboard({ places, operator }) {
 
   const load = async (event) => {
     event?.preventDefault();
+    if (!operator) {
+      setAnalytics(null);
+      setError('');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     const result = await fetchOperationalAnalytics(filters, operator);
@@ -146,20 +152,20 @@ export default function AnalyticsDashboard({ places, operator }) {
       <section className={PANEL}>
         <div>
           <h2 className="font-display text-lg font-bold text-white">Operational analytics</h2>
-          <p className="mt-1 text-xs text-purple-200/70">
+          <p className="mt-1 text-xs text-slate-400">
             Aggregated from stored records only. Empty or unsupported values are shown as zero, empty, or unavailable—not estimated.
           </p>
         </div>
         <form onSubmit={load} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="space-y-1 text-xs text-purple-200">
+          <label className="space-y-1 text-xs text-slate-300">
             <span>From date</span>
             <input type="date" value={filters.from_date} onChange={(event) => setFilters({ ...filters, from_date: event.target.value })} className={`${INPUT} w-full`} />
           </label>
-          <label className="space-y-1 text-xs text-purple-200">
+          <label className="space-y-1 text-xs text-slate-300">
             <span>To date</span>
             <input type="date" value={filters.to_date} onChange={(event) => setFilters({ ...filters, to_date: event.target.value })} className={`${INPUT} w-full`} />
           </label>
-          <label className="space-y-1 text-xs text-purple-200">
+          <label className="space-y-1 text-xs text-slate-300">
             <span>Location</span>
             <select value={filters.place} onChange={(event) => setFilters({ ...filters, place: event.target.value })} className={`${INPUT} w-full`}>
               <option value="">All locations</option>
@@ -169,13 +175,18 @@ export default function AnalyticsDashboard({ places, operator }) {
               })}
             </select>
           </label>
-          <button type="submit" disabled={loading} className="self-end rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+          <button type="submit" disabled={loading} className="self-end rounded-lg bg-orange-600 hover:bg-orange-500 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition shadow-sm disabled:opacity-50">
             {loading ? 'Loading…' : 'Apply filters'}
           </button>
         </form>
-        {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
+        {!operator && (
+          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            <span className="font-semibold">Operator sign-in required:</span> Detailed operational analytics and cross-district trend aggregation require operator authorization.
+          </div>
+        )}
+        {error && <p role="alert" className="mt-3 text-sm text-red-400">{error}</p>}
         {analytics && (
-          <p className="mt-3 text-[10px] text-purple-200/60">{analytics.data_source}</p>
+          <p className="mt-3 text-[10px] text-slate-500">{analytics.data_source}</p>
         )}
       </section>
 

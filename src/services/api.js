@@ -49,6 +49,42 @@ async function readJsonResponse(response) {
   }
 }
 
+// Check backend availability independently from operational data authorization.
+export async function checkBackendHealth(apiBase = DEFAULT_API_BASE) {
+  try {
+    const response = await fetchWithTimeout(`${apiBase}/health`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      timeoutMs: 10000,
+    });
+
+    const data = await readJsonResponse(response);
+    if (!response.ok || !data) {
+      return {
+        ok: false,
+        status: 'offline',
+        error: data?.error || `HTTP ${response.status}`,
+      };
+    }
+
+    return {
+      ok: true,
+      status: data.status || 'healthy',
+      service: data.service || 'resqgrid-backend',
+      commit: data.commit || null,
+      data,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 'offline',
+      error: error.message || 'The backend health check failed.',
+    };
+  }
+}
+
 // Fetch one consistent dashboard snapshot for live refreshes.
 export async function fetchIncidentsData(credentials, apiBase = DEFAULT_API_BASE) {
   try {
@@ -58,6 +94,13 @@ export async function fetchIncidentsData(credentials, apiBase = DEFAULT_API_BASE
 
     const data = await readJsonResponse(response);
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return {
+          source: 'unauthorized',
+          status: response.status,
+          error: data?.error || 'Operator credentials are required for operational data.',
+        };
+      }
       throw new Error(data?.error || `HTTP ${response.status}`);
     }
 

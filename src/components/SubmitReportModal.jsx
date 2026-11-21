@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
-import { ShieldCheck, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  ShieldCheck,
+  AlertCircle,
+  Mic,
+  Square,
+  Play,
+  Pause,
+  RotateCcw,
+  UploadCloud,
+  Volume2,
+} from 'lucide-react';
 const LANGUAGE_NAMES = {
   en: 'English',
   hi: 'Hindi',
@@ -71,6 +81,18 @@ export default function SubmitReportModal({
   const [severity, setSeverity] = useState('High');
   const [voiceFileName, setVoiceFileName] = useState('');
   const [audioFile, setAudioFile] = useState(null);
+  const [voiceInputTab, setVoiceInputTab] = useState('record'); // 'record' | 'upload'
+  const [recordingState, setRecordingState] = useState('idle'); // 'idle' | 'recording' | 'paused' | 'stopped'
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [micError, setMicError] = useState(null);
+
+  const mediaRecorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const timerRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
   const [isUploading, setIsUploading] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,9 +101,192 @@ export default function SubmitReportModal({
   const [idempotencyKey, setIdempotencyKey] = useState(createSubmissionId);
   const [demoSampleSelected, setDemoSampleSelected] = useState(false);
 
+  // Cleanup microphone resources and audio URL on unmount or URL change
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
+
+  const formatDuration = (totalSeconds) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const startRecording = async () => {
+    setMicError(null);
+    setSubmitSuccess(null);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    setAudioBlob(null);
+    setAudioFile(null);
+    setVoiceFileName('');
+    setVoiceReport(null);
+    setDemoSampleSelected(false);
+    setIdempotencyKey(createSubmissionId());
+
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      setMicError('Direct microphone recording is not supported in this browser environment.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      audioChunksRef.current = [];
+
+      let chosenMime = '';
+      if (typeof window !== 'undefined' && window.MediaRecorder) {
+        if (typeof MediaRecorder.isTypeSupported === 'function') {
+          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+            chosenMime = 'audio/webm;codecs=opus';
+          } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+            chosenMime = 'audio/webm';
+          } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+            chosenMime = 'audio/mp4';
+          } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
+            chosenMime = 'audio/ogg;codecs=opus';
+          } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+            chosenMime = 'audio/wav';
+          }
+        }
+      }
+
+      const recorder = new MediaRecorder(
+        stream,
+        chosenMime ? { mimeType: chosenMime } : undefined
+      );
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+        }
+
+        const actualType = recorder.mimeType || chosenMime || 'audio/webm';
+        const cleanMime = actualType.split(';')[0] || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: cleanMime });
+
+        if (blob.size === 0) {
+          setMicError('Audio recording was empty. Please speak clearly into your microphone.');
+          setRecordingState('idle');
+          return;
+        }
+
+        const ext = cleanMime.includes('mp4')
+          ? 'mp4'
+          : cleanMime.includes('ogg')
+          ? 'ogg'
+          : cleanMime.includes('wav')
+          ? 'wav'
+          : 'webm';
+
+        const fileName = `mic_recording_${Date.now()}.${ext}`;
+        const file = new File([blob], fileName, { type: cleanMime });
+        const url = URL.createObjectURL(blob);
+
+        setAudioBlob(blob);
+        setAudioFile(file);
+        setAudioUrl(url);
+        setVoiceFileName(fileName);
+        setRecordingState('stopped');
+        setDemoSampleSelected(false);
+        setOriginalText('');
+      };
+
+      recorder.start(250);
+      setRecordingDuration(0);
+      setRecordingState('recording');
+
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setMicError('Microphone permission denied. Please allow microphone access in your browser settings to record.');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        setMicError('No microphone detected. Please connect an audio input device or upload a recorded file.');
+      } else {
+        setMicError(err.message || 'Could not access microphone.');
+      }
+      setRecordingState('idle');
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.pause();
+      if (timerRef.current) clearInterval(timerRef.current);
+      setRecordingState('paused');
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+      mediaRecorderRef.current.resume();
+      setRecordingState('recording');
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    }
+  };
+
+  const stopRecording = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (
+      mediaRecorderRef.current &&
+      (mediaRecorderRef.current.state === 'recording' || mediaRecorderRef.current.state === 'paused')
+    ) {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const discardRecording = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    setAudioBlob(null);
+    setAudioFile(null);
+    setVoiceFileName('');
+    setRecordingDuration(0);
+    setRecordingState('idle');
+    setMicError(null);
+  };
+
   if (!isOpen && !isStandalonePage) return null;
 
   const handleVoiceUpload = (sampleIndex = 0) => {
+    discardRecording();
     setSubmitSuccess(null);
     setAudioFile(null);
     setVoiceReport(null);
@@ -98,6 +303,7 @@ export default function SubmitReportModal({
   };
 
   const clearDemoSample = () => {
+    discardRecording();
     setOriginalText('');
     setVoiceFileName('');
     setAudioFile(null);
@@ -111,6 +317,7 @@ export default function SubmitReportModal({
   };
 
   const handleFileInputChange = (e) => {
+    discardRecording();
     const file = e.target.files?.[0];
 
     if (!file) return;
@@ -210,15 +417,13 @@ export default function SubmitReportModal({
           return;
         }
 
+        discardRecording();
         setVoiceReport(report);
         setSubmitSuccess({
           message: result.data.message || `Voice recording saved for ${place}.`,
           endpoint: 'POST /voice-report',
           error: false,
         });
-
-        setAudioFile(null);
-        setVoiceFileName('');
         setIdempotencyKey(createSubmissionId());
         return;
       } catch (error) {
@@ -315,14 +520,14 @@ export default function SubmitReportModal({
   };
 
   const content = (
-    <div className="rq-report-modal w-full max-w-2xl mx-auto rounded-2xl border overflow-hidden">
+    <div className="rq-report-modal w-full max-w-2xl mx-auto rounded-2xl border border-slate-700/80 bg-slate-900 shadow-2xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 bg-[#2D1B4E] border-b border-purple-300/20">
+      <div className="flex items-center justify-between px-5 py-4 bg-slate-950 border-b border-slate-800">
         <div>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-[#FF6B35] block">
+          <span className="text-[10px] font-mono uppercase tracking-widest text-orange-400 font-semibold block">
             Field Intake Portal • POST /report
           </span>
-          <h2 className="font-display text-lg font-bold text-white">
+          <h2 className="text-lg font-bold text-white">
             Submit Field Incident Report (Hindi / Punjabi / English)
           </h2>
         </div>
@@ -330,7 +535,7 @@ export default function SubmitReportModal({
           <button
             type="button"
             onClick={onClose}
-            className="btn-tactical rounded-lg bg-[#1a0b2e] px-3 py-1.5 text-xs font-semibold text-purple-200 hover:text-white border border-purple-300/20"
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white border border-slate-700 transition"
           >
             Close
           </button>
@@ -339,11 +544,11 @@ export default function SubmitReportModal({
 
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
         {/* Golden Rule Notice */}
-        <div className="rounded-xl bg-[#120721] border border-purple-300/20 p-3 text-xs text-purple-200/90 flex items-center justify-between gap-2">
+        <div className="rounded-xl bg-slate-950 border border-slate-800 p-3 text-xs text-slate-300 flex items-center justify-between gap-2">
           <span>
             Incoming reports are clustered by AI as <strong className="text-white">Unverified / Corroborated</strong>. Only a human operator can mark an incident as <strong className="text-emerald-300">Confirmed</strong>.
           </span>
-          <span className="rounded bg-amber-400/20 border border-amber-300/40 px-2 py-0.5 text-[10px] font-bold text-amber-300 shrink-0">
+          <span className="rounded bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 text-[10px] font-bold text-amber-300 shrink-0">
             AI Suggests Only
           </span>
         </div>
@@ -367,7 +572,7 @@ export default function SubmitReportModal({
         {/* Sector & Incident Metadata */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
-            <label htmlFor="report-place" className="block text-xs font-semibold text-purple-200 mb-1">
+            <label htmlFor="report-place" className="block text-xs font-semibold text-slate-300 mb-1">
               Himachal Sector (Place)
             </label>
             <select
@@ -378,7 +583,7 @@ export default function SubmitReportModal({
                 setIdempotencyKey(createSubmissionId());
               }}
               disabled={isSubmitting}
-              className="w-full rounded-xl bg-[#120721] border border-purple-300/30 px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF6B35]"
+              className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500"
             >
               {availablePlaces.map((p) => (
                 <option key={p.place} value={p.place}>
@@ -389,7 +594,7 @@ export default function SubmitReportModal({
           </div>
 
           <div>
-            <label htmlFor="report-type" className="block text-xs font-semibold text-purple-200 mb-1">
+            <label htmlFor="report-type" className="block text-xs font-semibold text-slate-300 mb-1">
               Suggested Incident Type
             </label>
             <select
@@ -400,7 +605,7 @@ export default function SubmitReportModal({
                 setIdempotencyKey(createSubmissionId());
               }}
               disabled={isSubmitting}
-              className="w-full rounded-xl bg-[#120721] border border-purple-300/30 px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF6B35]"
+              className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500"
             >
               <option value="Flood">Flood</option>
               <option value="Landslide">Landslide</option>
@@ -409,7 +614,7 @@ export default function SubmitReportModal({
           </div>
 
           <div>
-            <label htmlFor="report-severity" className="block text-xs font-semibold text-purple-200 mb-1">
+            <label htmlFor="report-severity" className="block text-xs font-semibold text-slate-300 mb-1">
               Initial Severity Estimate
             </label>
             <select
@@ -420,7 +625,7 @@ export default function SubmitReportModal({
                 setIdempotencyKey(createSubmissionId());
               }}
               disabled={isSubmitting}
-              className="w-full rounded-xl bg-[#120721] border border-purple-300/30 px-3 py-2 text-xs text-white focus:outline-none focus:border-[#FF6B35]"
+              className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500"
             >
               <option value="High">High</option>
               <option value="Medium">Medium</option>
@@ -429,44 +634,215 @@ export default function SubmitReportModal({
           </div>
         </div>
 
-        {/* Voice Upload Button: "Upload Voice Note (Hindi/Punjabi)" */}
-        <div className="rounded-xl bg-[#2D1B4E]/60 border border-purple-300/25 p-3.5 space-y-2.5">
+        {/* Voice Note Intake Section */}
+        <div className="rounded-xl bg-slate-950/70 border border-slate-800 p-3.5 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="text-xs font-semibold text-white block">
-                Voice Note Intake (ASR Speech-to-Text Preview)
+                Voice Note Intake (Speech-to-Text & Translation)
               </span>
-              <span className="text-[11px] text-purple-200/75">
-                Upload English, Hindi, or Punjabi audio, or load a field voice sample
+              <span className="text-[11px] text-slate-400">
+                Record directly from browser microphone or upload pre-recorded audio
               </span>
             </div>
 
-            <label className="btn-tactical cursor-pointer inline-flex items-center gap-2 rounded-xl bg-[#2D1B4E] hover:bg-[#3d2666] border border-[#FF6B35]/60 px-3.5 py-2 text-xs font-bold text-[#FF6B35] shadow-[0_0_14px_rgba(255,107,53,0.25)]">
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span>Upload Voice Note (English/Hindi/Punjabi)</span>
-              <input
-                aria-label="Upload audio recording"
-                type="file"
-                accept="audio/*"
-                onChange={handleFileInputChange}
-                disabled={isSubmitting}
-                className="hidden"
-              />
-            </label>
+            {/* Mode Switcher */}
+            <div className="flex rounded-lg bg-slate-900 border border-slate-700/80 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setVoiceInputTab('record')}
+                disabled={isSubmitting || recordingState === 'recording'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition cursor-pointer ${
+                  voiceInputTab === 'record'
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Mic className="h-3.5 w-3.5" />
+                <span>Direct Microphone</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setVoiceInputTab('upload')}
+                disabled={isSubmitting || recordingState === 'recording'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition cursor-pointer ${
+                  voiceInputTab === 'upload'
+                    ? 'bg-orange-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <UploadCloud className="h-3.5 w-3.5" />
+                <span>Upload Audio File</span>
+              </button>
+            </div>
           </div>
 
-          {/* Preset Voice Note Simulation Buttons for Instant Testing */}
+          {/* Direct Microphone Tab Panel */}
+          {voiceInputTab === 'record' && (
+            <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3 space-y-3">
+              {micError && (
+                <div role="alert" className="flex items-start gap-2 rounded-lg bg-red-950/50 border border-red-800/60 p-2.5 text-xs text-red-200">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
+                  <span>{micError}</span>
+                </div>
+              )}
+
+              {recordingState === 'idle' && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-1">
+                  <div className="text-xs text-slate-300">
+                    <p className="font-semibold text-slate-200">Live Microphone Intake</p>
+                    <p className="text-[11px] text-slate-400">Speak in Hindi, Punjabi, or English. Audio is transcribed automatically by Whisper upon submission.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    disabled={isSubmitting}
+                    className="cursor-pointer shrink-0 inline-flex items-center gap-2 rounded-xl bg-red-600 hover:bg-red-500 active:bg-red-700 px-4 py-2 text-xs font-semibold text-white shadow-md transition"
+                  >
+                    <Mic className="h-4 w-4" />
+                    <span>Start Recording</span>
+                  </button>
+                </div>
+              )}
+
+              {(recordingState === 'recording' || recordingState === 'paused') && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 py-1">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-2">
+                      <span className={`inline-block h-3 w-3 rounded-full ${
+                        recordingState === 'recording' ? 'bg-red-500 animate-ping' : 'bg-amber-400'
+                      }`} />
+                      <span className="font-mono text-xs font-bold text-white tracking-wider">
+                        {recordingState === 'recording' ? 'REC' : 'PAUSED'} {formatDuration(recordingDuration)}
+                      </span>
+                    </span>
+
+                    {recordingState === 'recording' && (
+                      <div className="flex items-center gap-0.5 h-4 px-2" aria-hidden="true">
+                        <span className="w-1 bg-red-500 rounded-full animate-pulse h-3" />
+                        <span className="w-1 bg-red-400 rounded-full animate-pulse h-4" />
+                        <span className="w-1 bg-red-500 rounded-full animate-pulse h-2" />
+                        <span className="w-1 bg-red-400 rounded-full animate-pulse h-4" />
+                        <span className="w-1 bg-red-500 rounded-full animate-pulse h-3" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {recordingState === 'recording' ? (
+                      <button
+                        type="button"
+                        onClick={pauseRecording}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 transition"
+                      >
+                        <Pause className="h-3.5 w-3.5" />
+                        <span>Pause</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={resumeRecording}
+                        className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 transition"
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                        <span>Resume</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={stopRecording}
+                      className="cursor-pointer inline-flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition"
+                    >
+                      <Square className="h-3.5 w-3.5 fill-current" />
+                      <span>Stop Recording</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {recordingState === 'stopped' && audioUrl && (
+                <div className="space-y-2 py-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                      <Volume2 className="h-4 w-4" />
+                      Recorded Audio Ready ({formatDuration(recordingDuration)})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={discardRecording}
+                      disabled={isSubmitting}
+                      className="cursor-pointer inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-red-400 transition"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      <span>Discard & Re-record</span>
+                    </button>
+                  </div>
+
+                  {/* HTML5 Audio Preview */}
+                  <audio
+                    controls
+                    src={audioUrl}
+                    className="w-full h-9 rounded-lg bg-slate-950 border border-slate-800"
+                    aria-label="Recorded voice note preview"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Upload Audio File Tab Panel */}
+          <div className={voiceInputTab === 'upload' ? 'block' : 'hidden'}>
+            <div className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-slate-300">
+                  Select an audio file from your device (.webm, .wav, .mp3, .ogg, .m4a)
+                </span>
+
+                <label className="cursor-pointer inline-flex items-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-orange-500/50 px-3.5 py-2 text-xs font-semibold text-orange-400 shadow-sm transition">
+                  <UploadCloud className="h-4 w-4" />
+                  <span>Choose Audio File</span>
+                  <input
+                    aria-label="Upload audio recording"
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleFileInputChange}
+                    disabled={isSubmitting}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {audioFile && voiceInputTab === 'upload' && !demoSampleSelected && (
+                <div className="flex items-center justify-between gap-2 text-xs bg-slate-950/80 rounded-lg p-2 border border-slate-800">
+                  <span className="text-emerald-400 truncate">
+                    Selected file: {audioFile.name} ({(audioFile.size / 1024).toFixed(1)} KB)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAudioFile(null);
+                      setVoiceFileName('');
+                    }}
+                    className="cursor-pointer text-slate-400 hover:text-red-400 text-xs shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Preset Voice Note Simulation Samples */}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] text-slate-500 mr-1">Field samples:</span>
             {VOICE_SAMPLES.map((sample, idx) => (
               <button
                 key={sample.label}
                 type="button"
                 onClick={() => handleVoiceUpload(idx)}
-                disabled={isSubmitting}
-                className="btn-tactical rounded-lg bg-[#1a0b2e] hover:bg-[#120721] border border-purple-300/20 px-2.5 py-1 text-[11px] text-purple-200 hover:text-white"
+                disabled={isSubmitting || recordingState === 'recording'}
+                className="cursor-pointer rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 px-2.5 py-1 text-[11px] text-slate-400 hover:text-white transition"
               >
                 Sample: {sample.label}
               </button>
@@ -474,7 +850,7 @@ export default function SubmitReportModal({
           </div>
 
           {isTranscribing && (
-            <div className="text-xs text-[#FF6B35] font-mono animate-pulse">
+            <div className="text-xs text-orange-400 font-mono animate-pulse">
               Uploading audio and running multilingual transcription...
             </div>
           )}
@@ -508,11 +884,11 @@ export default function SubmitReportModal({
             </div>
             <dl className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
-                <dt className="text-purple-200/75">Transcription status</dt>
+                <dt className="text-slate-400">Transcription status</dt>
                 <dd className="font-semibold">{voiceReport.transcription_status || 'Pending'}</dd>
               </div>
               <div>
-                <dt className="text-purple-200/75">Detected language</dt>
+                <dt className="text-slate-400">Detected language</dt>
                 <dd className="font-semibold">
                   {voiceReport.detected_language &&
                   voiceReport.detected_language !== 'unknown'
@@ -521,12 +897,12 @@ export default function SubmitReportModal({
                 </dd>
               </div>
               <div>
-                <dt className="text-purple-200/75">Review status</dt>
+                <dt className="text-slate-400">Review status</dt>
                 <dd className="font-semibold">{voiceReport.review_status || 'Needs Human Review'}</dd>
               </div>
             </dl>
             <div className="mt-2">
-              <div className="text-purple-200/75">Transcribed text</div>
+              <div className="text-slate-400">Transcribed text</div>
               <p className="mt-1 whitespace-pre-wrap">
                 {voiceReport.original_text || 'No transcript is available; the original audio is retained for review.'}
               </p>
@@ -539,7 +915,7 @@ export default function SubmitReportModal({
 
         {/* Text Box: "Describe incident..." */}
         <div>
-          <label htmlFor="report-description" className="block text-xs font-semibold text-purple-200 mb-1.5">
+          <label htmlFor="report-description" className="block text-xs font-semibold text-slate-300 mb-1.5">
             Field Observation (`original_text`)
           </label>
           <textarea
@@ -556,7 +932,7 @@ export default function SubmitReportModal({
             }}
             placeholder="Describe incident..."
             required={!audioFile}
-            className="w-full rounded-xl bg-[#120721] border border-purple-300/30 p-3 text-sm text-white placeholder-purple-300/45 focus:outline-none focus:border-[#FF6B35]"
+            className="w-full rounded-xl bg-slate-950 border border-slate-700 p-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
           />
         </div>
 
@@ -566,8 +942,8 @@ export default function SubmitReportModal({
             role={submitSuccess.error ? 'alert' : 'status'}
             className={`rounded-xl border p-4 text-xs ${
               submitSuccess.error
-                ? 'bg-red-500/20 border-red-400/50 text-red-200'
-                : 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
+                ? 'bg-red-500/10 border-red-500/30 text-red-200'
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
             }`}
           >
             <div className={`font-bold ${submitSuccess.error ? 'text-red-300' : 'text-emerald-300'}`}>
@@ -595,7 +971,7 @@ export default function SubmitReportModal({
             <button
               type="button"
               onClick={onClose}
-              className="btn-tactical rounded-xl bg-[#2D1B4E] px-4 py-2.5 text-xs font-semibold text-purple-200 hover:text-white"
+              className="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:text-white transition"
             >
               Cancel
             </button>
@@ -603,7 +979,7 @@ export default function SubmitReportModal({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="btn-tactical rounded-xl bg-[#FF6B35] hover:bg-[#ff8255] disabled:cursor-wait disabled:opacity-60 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-[0_0_20px_rgba(255,107,53,0.5)]"
+            className="rounded-xl bg-orange-600 hover:bg-orange-500 disabled:cursor-wait disabled:opacity-60 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md transition"
           >
             {isSubmitting
               ? audioFile

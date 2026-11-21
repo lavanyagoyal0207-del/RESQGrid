@@ -15,9 +15,9 @@ import {
 import AnalyticsDashboard from './AnalyticsDashboard';
 
 const PANEL =
-  'rq-intelligence-panel rounded-2xl border p-4';
+  'rq-intelligence-panel rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-xl';
 const INPUT =
-  'w-full rounded-lg border border-purple-300/25 bg-[#120721] px-3 py-2 text-sm text-white outline-none focus:border-[#FF6B35]';
+  'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none focus:border-orange-500 transition-colors';
 const LANGUAGES = [
   ['en', 'English'],
   ['hi', 'Hindi'],
@@ -124,7 +124,7 @@ function AnalysisEditor({ report, places, operator, onSaved }) {
         type="submit"
         disabled={!canOperate || busy || Object.keys(values).length === 0}
         title={!canOperate ? 'Operator sign-in required' : ''}
-        className="rounded-lg bg-[#FF6B35] px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+        className="rounded-lg bg-orange-600 hover:bg-orange-500 px-4 py-2 text-xs font-bold text-white transition shadow-sm disabled:opacity-50"
       >
         {busy ? 'Saving corrections…' : 'Save corrections'}
       </button>
@@ -144,6 +144,14 @@ function IntelligenceSection({ reports, places, operator, onReportUpdated }) {
   const selected = reports.find((report) => report.report_id === selectedId) || reports[0];
 
   const load = async () => {
+    if (!operator) {
+      setComparisons([]);
+      setPatterns([]);
+      setLabel('');
+      setError('');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     const [comparisonResult, patternResult] = await Promise.all([
@@ -151,11 +159,21 @@ function IntelligenceSection({ reports, places, operator, onReportUpdated }) {
       fetchEmergingPatterns(operator),
     ]);
     if (!comparisonResult.ok || !patternResult.ok) {
-      setError(
+      const err =
         comparisonResult.error ||
         patternResult.error ||
-        'Intelligence data could not be loaded.'
-      );
+        'Intelligence data could not be loaded.';
+      if (
+        err.includes('401') ||
+        err.includes('Unauthorized') ||
+        err.includes('Authentication')
+      ) {
+        setError(
+          'Operator sign-in is required for automated cross-report intelligence.'
+        );
+      } else {
+        setError(err);
+      }
     } else {
       setComparisons(comparisonResult.data.comparisons || []);
       setPatterns(patternResult.data.patterns || []);
@@ -174,14 +192,21 @@ function IntelligenceSection({ reports, places, operator, onReportUpdated }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-bold text-white">Multilingual report intelligence</h2>
-            <p className="mt-1 text-xs text-purple-200/70">
+            <p className="mt-1 text-xs text-slate-400">
               Original citizen content is preserved. Translation and extraction remain unverified recommendations.
             </p>
           </div>
-          <button type="button" onClick={load} disabled={loading} className="rounded-lg border border-purple-300/30 px-3 py-2 text-xs text-white disabled:opacity-50">
-            {loading ? 'Refreshing…' : 'Refresh intelligence'}
-          </button>
+          {operator && (
+            <button type="button" onClick={load} disabled={loading} className="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs text-slate-200 hover:text-white transition shadow-sm disabled:opacity-50">
+              {loading ? 'Refreshing…' : 'Refresh intelligence'}
+            </button>
+          )}
         </div>
+        {!operator && (
+          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+            <span className="font-semibold">Operator sign-in required:</span> Automated contradiction analysis and emerging pattern anomaly detection require operator authorization. Stored citizen reports and translations are displayed below.
+          </div>
+        )}
         {error && <ActionMessage message={error} error />}
       </section>
 
@@ -204,96 +229,102 @@ function IntelligenceSection({ reports, places, operator, onReportUpdated }) {
                   ))}
                 </select>
               </div>
-              <p className="whitespace-pre-wrap rounded-xl border border-purple-300/15 bg-[#120721] p-3 text-sm text-white">
+              <p className="whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-900 p-3 text-sm text-white">
                 {selected.original_text || 'No text is available. The original audio remains available in incident evidence.'}
               </p>
-              <p className="mt-2 text-xs text-purple-200/75">
-                Language: <strong>{selected.analysis?.language?.name || selected.detected_language || 'Unknown'}</strong>
+              <p className="mt-2 text-xs text-slate-400">
+                Language: <strong className="text-slate-200">{selected.analysis?.language?.name || selected.detected_language || 'Unknown'}</strong>
                 {' · '}Detection confidence: {selected.analysis?.language?.confidence ?? 'Unknown'}
                 {' · '}Verification: {selected.verification_status || 'Unverified'}
               </p>
             </article>
             <article className={PANEL}>
               <h3 className="font-display text-sm font-bold text-white">English translation</h3>
-              <p className="mt-2 min-h-24 whitespace-pre-wrap rounded-xl border border-purple-300/15 bg-[#120721] p-3 text-sm text-white">
+              <p className="mt-2 min-h-24 whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-900 p-3 text-sm text-white">
                 {selected.translated_text || 'Translation is unavailable. No translated text has been fabricated.'}
               </p>
-              <p className="mt-2 text-xs text-purple-200/75">
-                Translation status: <strong>{selected.translation_status || 'Unavailable'}</strong>
+              <p className="mt-2 text-xs text-slate-400">
+                Translation status: <strong className="text-slate-200">{selected.translation_status || 'Unavailable'}</strong>
                 {' · '}AI processing: {selected.analysis_status || 'Not processed'}
               </p>
               {selected.transcription_status && (
-                <p className="mt-1 text-xs text-purple-200/75">
+                <p className="mt-1 text-xs text-slate-400">
                   Audio transcription: {selected.transcription_status}
                 </p>
               )}
             </article>
           </section>
-          <AnalysisEditor
-            key={selected.report_id}
-            report={selected}
-            places={places}
-            operator={operator}
-            onSaved={onReportUpdated}
-          />
+          {operator && (
+            <AnalysisEditor
+              key={selected.report_id}
+              report={selected}
+              places={places}
+              operator={operator}
+              onSaved={onReportUpdated}
+            />
+          )}
         </>
       ) : (
-        <p className={`${PANEL} text-sm text-purple-200/75`}>No stored reports are available for analysis.</p>
+        <p className={`${PANEL} text-sm text-slate-400`}>No stored reports are available for analysis.</p>
       )}
 
       <section className={PANEL}>
         <h3 className="font-display text-sm font-bold text-white">Potential duplicates and contradictions</h3>
-        <p className="mb-3 mt-1 text-xs text-purple-200/70">
+        <p className="mb-3 mt-1 text-xs text-slate-400">
           These comparisons identify review candidates only; they never delete reports or prove an incident.
         </p>
-        {comparisons.length ? (
+        {!operator ? (
+          <p className="text-xs text-slate-400">Sign in as an operator to view automated duplicate and contradiction analysis.</p>
+        ) : comparisons.length ? (
           <div className="space-y-3">
             {comparisons.map((item) => (
-              <article key={item.report_ids.join(':')} className="rounded-xl border border-orange-300/20 bg-[#120721] p-3">
+              <article key={item.report_ids.join(':')} className="rounded-xl border border-slate-800 bg-slate-900 p-3.5">
                 <div className="flex flex-wrap justify-between gap-2 text-xs">
-                  <strong className="text-orange-200">{item.classification}</strong>
-                  <span className="font-mono text-purple-200">{item.report_ids.join(' ↔ ')}</span>
+                  <strong className="text-orange-400 font-semibold">{item.classification}</strong>
+                  <span className="font-mono text-slate-300">{item.report_ids.join(' ↔ ')}</span>
                 </div>
-                <p className="mt-1 text-xs text-purple-100">
+                <p className="mt-1 text-xs text-slate-300">
                   Similarity {item.text_similarity} · {item.time_difference_minutes} minutes apart
                   {item.severity_conflict ? ' · Conflicting severity' : ''}
                 </p>
-                <p className="mt-1 text-xs text-amber-200">
+                <p className="mt-1 text-xs text-amber-300">
                   Incident relation: {item.contradicts_incident ? 'contradicts linked incident evidence' : item.supports_incident ? 'associated with the same incident; not confirmation' : 'no shared incident association'}
                 </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-purple-200/80">
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-400">
                   {(item.reasoning || []).map((reason) => <li key={reason}>{reason}</li>)}
                 </ul>
               </article>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-purple-200/70">No candidate comparisons in the configured time/location window.</p>
+          <p className="text-xs text-slate-400">No candidate comparisons in the configured time/location window.</p>
         )}
       </section>
 
       <section className={PANEL}>
         <h3 className="font-display text-sm font-bold text-white">Emerging patterns</h3>
-        <p className="mb-3 mt-1 text-xs text-amber-200">{label || 'Observed anomalies only; not a validated disaster prediction.'}</p>
-        {patterns.length ? (
+        <p className="mb-3 mt-1 text-xs text-amber-300">{label || 'Observed anomalies only; not a validated disaster prediction.'}</p>
+        {!operator ? (
+          <p className="text-xs text-slate-400">Sign in as an operator to view automated pattern anomaly detection.</p>
+        ) : patterns.length ? (
           <div className="grid gap-3 md:grid-cols-2">
             {patterns.map((pattern, index) => (
-              <article key={`${pattern.type}-${index}`} className="rounded-xl border border-amber-300/20 bg-[#120721] p-3">
-                <div className="font-semibold text-orange-200">{pattern.type}</div>
+              <article key={`${pattern.type}-${index}`} className="rounded-xl border border-slate-800 bg-slate-900 p-3.5">
+                <div className="font-semibold text-orange-400">{pattern.type}</div>
                 <p className="mt-1 text-sm text-white">{pattern.description}</p>
-                <p className="mt-2 text-xs text-purple-200/75">
+                <p className="mt-2 text-xs text-slate-400">
                   Locations: {(pattern.locations || []).join(', ') || 'Unknown'}
                   {' · '}Evidence: {pattern.confidence}
                 </p>
-                <p className="mt-1 text-xs text-purple-200/65">{pattern.evidence_strength}</p>
-                <p className="mt-2 break-all font-mono text-[10px] text-purple-300/80">
+                <p className="mt-1 text-xs text-slate-500">{pattern.evidence_strength}</p>
+                <p className="mt-2 break-all font-mono text-[10px] text-slate-400">
                   Supporting reports: {(pattern.supporting_report_ids || []).join(', ') || 'None'}
                 </p>
               </article>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-purple-200/70">No stored reports meet the current anomaly thresholds.</p>
+          <p className="text-xs text-slate-400">No stored reports meet the current anomaly thresholds.</p>
         )}
       </section>
     </div>
@@ -318,6 +349,10 @@ function BriefSection({
   const canOperate = Boolean(operator && operator.role !== 'viewer');
 
   useEffect(() => {
+    if (!operator) {
+      setHistory([]);
+      return;
+    }
     let active = true;
     fetchSituationBriefHistory(operator).then((result) => {
       if (!active) return;
@@ -355,33 +390,33 @@ function BriefSection({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-lg font-bold text-white">Operational situation brief</h2>
-            <p className="mt-1 text-xs text-purple-200/70">
+            <p className="mt-1 text-xs text-slate-400">
               Uses stored records only. Drafts are not published and recommendations never dispatch resources.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={onGenerate} disabled={!canOperate || isGenerating} className="rounded-lg border border-purple-300/30 px-3 py-2 text-xs text-white disabled:opacity-50">
+            <button type="button" onClick={onGenerate} disabled={!canOperate || isGenerating} className="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs text-slate-200 hover:text-white transition shadow-sm disabled:opacity-50">
               {isGenerating ? 'Generating…' : 'Generate draft'}
             </button>
             {isDraft && (
-              <button type="button" onClick={saveEdits} disabled={!canOperate || busy || !Object.keys(edits).length} className="rounded-lg bg-[#FF6B35] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+              <button type="button" onClick={saveEdits} disabled={!canOperate || busy || !Object.keys(edits).length} className="rounded-lg bg-orange-600 hover:bg-orange-500 px-3 py-2 text-xs font-bold text-white transition shadow-sm disabled:opacity-50">
                 {busy ? 'Saving…' : 'Save edits'}
               </button>
             )}
             {isDraft && (
-              <button type="button" onClick={onApprove} disabled={!canOperate || busy || isApproving} className="rounded-lg border border-emerald-300/35 px-3 py-2 text-xs text-emerald-200 disabled:opacity-50">
+              <button type="button" onClick={onApprove} disabled={!canOperate || busy || isApproving} className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/50 px-3 py-2 text-xs font-bold text-white transition shadow-sm disabled:opacity-50">
                 {isApproving ? 'Approving…' : 'Approve brief'}
               </button>
             )}
             {isApproved && (
-              <button type="button" onClick={archive} disabled={!canOperate || busy} className="rounded-lg border border-purple-300/30 px-3 py-2 text-xs text-purple-100 disabled:opacity-50">
+              <button type="button" onClick={archive} disabled={!canOperate || busy} className="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs text-slate-200 hover:text-white transition shadow-sm disabled:opacity-50">
                 Archive approved brief
               </button>
             )}
           </div>
         </div>
         {error && <ActionMessage message={error} error />}
-        {!canOperate && <p className="mt-2 text-xs text-amber-200">Operator sign-in is required to edit, approve, or archive.</p>}
+        {!canOperate && <p className="mt-2 text-xs text-amber-300">Operator sign-in is required to edit, approve, or archive.</p>}
       </section>
 
       {brief ? (
@@ -398,19 +433,19 @@ function BriefSection({
                   maxLength={5000}
                   className={`${INPUT} resize-y`}
                 />
-                <span className="block text-[11px] text-purple-200/65">
+                <span className="block text-[11px] text-slate-400">
                   {section.verification} · Reports: {(section.report_ids || []).join(', ') || 'None'}
                 </span>
               </label>
             ))}
           </section>
-          <p className="text-xs text-purple-200/70">
-            Status: <strong className="text-orange-200">{brief.status}</strong>
+          <p className="text-xs text-slate-400">
+            Status: <strong className="text-orange-400">{brief.status}</strong>
             {' · '}Generated: {brief.generated_at ? new Date(brief.generated_at).toLocaleString() : 'Unknown'}
           </p>
         </>
       ) : (
-        <p className={`${PANEL} text-sm text-purple-200/70`}>No current brief. Generate a draft from currently stored incident and report data.</p>
+        <p className={`${PANEL} text-sm text-slate-400`}>No current brief. Generate a draft from currently stored incident and report data.</p>
       )}
 
       <section className={PANEL}>
@@ -418,10 +453,10 @@ function BriefSection({
         {history.length ? (
           <ul className="mt-2 space-y-2">
             {history.map((item) => (
-              <li key={item.version_id || item.PK} className="rounded-lg bg-[#120721] p-3 text-xs">
-                <strong className="text-purple-100">{item.title || 'Situation brief'}</strong>
-                <span className="ml-2 text-purple-300">{item.status}</span>
-                <p className="mt-1 text-purple-200/70">
+              <li key={item.version_id || item.PK} className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs">
+                <strong className="text-slate-200">{item.title || 'Situation brief'}</strong>
+                <span className="ml-2 text-slate-400">{item.status}</span>
+                <p className="mt-1 text-slate-400">
                   {item.generated_at ? new Date(item.generated_at).toLocaleString() : 'Timestamp unavailable'}
                   {' · '}Approved by {item.approved_by || 'Unknown'}
                 </p>
@@ -429,7 +464,7 @@ function BriefSection({
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-xs text-purple-200/70">No archived briefs are stored.</p>
+          <p className="mt-2 text-xs text-slate-400">No archived briefs are stored.</p>
         )}
       </section>
     </div>
@@ -449,6 +484,10 @@ function AlertSection({ places, operator }) {
   const canOperate = Boolean(operator && operator.role !== 'viewer');
 
   const loadAlerts = async () => {
+    if (!operator) {
+      setAlerts([]);
+      return;
+    }
     const result = await fetchAlerts(operator);
     if (!result.ok) setError(result.error);
     else setAlerts(result.data.alerts || []);
@@ -523,14 +562,14 @@ function AlertSection({ places, operator }) {
           Drafts require human confirmation and approval.
         </p>
         <form onSubmit={createDraft} className="mt-4 grid gap-3 md:grid-cols-2">
-          <fieldset className="rounded-xl border border-purple-300/15 p-3 md:col-span-2">
-            <legend className="px-1 text-xs text-purple-200">Affected locations with human-confirmed reports</legend>
+          <fieldset className="rounded-xl border border-slate-800 p-3.5 md:col-span-2">
+            <legend className="px-1 text-xs text-slate-300 font-medium">Affected locations with human-confirmed reports</legend>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {places.map((place) => {
                 const name = place.place || place.name;
                 if (!name) return null;
                 return (
-                  <label key={name} className="flex items-center gap-2 text-xs text-purple-100">
+                  <label key={name} className="flex items-center gap-2 text-xs text-slate-200">
                     <input
                       type="checkbox"
                       checked={selectedLocations.includes(name)}
@@ -546,23 +585,23 @@ function AlertSection({ places, operator }) {
               })}
             </div>
           </fieldset>
-          <label className="space-y-1 text-xs text-purple-200">
+          <label className="space-y-1 text-xs text-slate-300">
             <span>Severity label</span>
             <select value={severity} onChange={(event) => setSeverity(event.target.value)} className={INPUT}>
               {['Low', 'Medium', 'High', 'Critical'].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
-          <label className="space-y-1 text-xs text-purple-200">
+          <label className="space-y-1 text-xs text-slate-300">
             <span>Urgency label</span>
             <select value={urgency} onChange={(event) => setUrgency(event.target.value)} className={INPUT}>
               {['Advisory', 'Watch', 'Warning', 'Emergency'].map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
-          <button disabled={!canOperate || loading || !selectedLocations.length} className="rounded-lg bg-[#FF6B35] px-4 py-2 text-xs font-bold text-white disabled:opacity-50 md:col-span-2">
+          <button disabled={!canOperate || loading || !selectedLocations.length} className="rounded-lg bg-orange-600 hover:bg-orange-500 px-4 py-2 text-xs font-bold text-white transition shadow-sm disabled:opacity-50 md:col-span-2">
             {loading ? 'Preparing draft…' : 'Generate multilingual draft'}
           </button>
         </form>
-        {!canOperate && <p className="mt-2 text-xs text-amber-200">Operator sign-in is required to create or approve alerts.</p>}
+        {!canOperate && <p className="mt-2 text-xs text-amber-300">Operator sign-in is required to create or approve alerts.</p>}
         <ActionMessage message={error} error />
         <ActionMessage message={message} />
       </section>
@@ -573,15 +612,15 @@ function AlertSection({ places, operator }) {
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h3 className="font-display text-sm font-bold text-white">{alert.alert_id} · {alert.urgency} / {alert.severity}</h3>
-                <p className="mt-1 text-xs text-purple-200/70">
+                <p className="mt-1 text-xs text-slate-400">
                   {alert.locations?.join(', ')} · Status: {alert.status} · Supporting confirmed reports: {alert.supporting_report_ids?.join(', ')}
                 </p>
               </div>
-              <span className="rounded border border-orange-300/25 px-2 py-1 text-[10px] text-orange-200">{alert.delivery_mode}</span>
+              <span className="rounded border border-orange-500/30 bg-orange-500/10 px-2 py-1 text-[10px] font-mono text-orange-400">{alert.delivery_mode}</span>
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               {LANGUAGES.map(([language, name]) => (
-                <label key={language} className="space-y-1 text-xs text-purple-200">
+                <label key={language} className="space-y-1 text-xs text-slate-300">
                   <span>{name} · {alert.translation_status?.[language] || 'Needs review'}</span>
                   <textarea
                     value={draftMessages[alert.alert_id]?.[language] ?? alert.messages?.[language] ?? ''}
@@ -599,24 +638,24 @@ function AlertSection({ places, operator }) {
                 type="button"
                 onClick={() => saveMessages(alert)}
                 disabled={!canOperate || busyId === alert.alert_id || !Object.keys(draftMessages[alert.alert_id] || {}).length}
-                className="mt-3 rounded-lg border border-purple-300/30 px-3 py-2 text-xs text-white disabled:opacity-50"
+                className="mt-3 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs text-slate-200 hover:text-white transition shadow-sm disabled:opacity-50"
               >
                 {busyId === alert.alert_id ? 'Saving…' : 'Save message edits'}
               </button>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
               {alert.status === 'Draft' && (
-                <button type="button" onClick={() => transition(alert, 'approve')} disabled={!canOperate || busyId === alert.alert_id} className="rounded-lg border border-emerald-300/30 px-3 py-2 text-xs text-emerald-200 disabled:opacity-50">
+                <button type="button" onClick={() => transition(alert, 'approve')} disabled={!canOperate || busyId === alert.alert_id} className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/50 px-3 py-2 text-xs font-bold text-white transition shadow-sm disabled:opacity-50">
                   Approve
                 </button>
               )}
               {alert.status === 'Approved' && (
-                <button type="button" onClick={() => transition(alert, 'send')} disabled={!canOperate || busyId === alert.alert_id} className="rounded-lg bg-[#FF6B35] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                <button type="button" onClick={() => transition(alert, 'send')} disabled={!canOperate || busyId === alert.alert_id} className="rounded-lg bg-orange-600 hover:bg-orange-500 px-3 py-2 text-xs font-bold text-white transition shadow-sm disabled:opacity-50">
                   Record simulated delivery
                 </button>
               )}
             </div>
-            <ol className="mt-3 space-y-1 border-t border-purple-300/15 pt-2 text-[10px] text-purple-200/65">
+            <ol className="mt-3 space-y-1 border-t border-slate-800 pt-2 text-[10px] text-slate-500">
               {(alert.history || []).map((entry, index) => (
                 <li key={`${entry.status}-${entry.timestamp}-${index}`}>
                   {entry.status} · {entry.operator} · {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : 'Unknown'}
@@ -625,7 +664,7 @@ function AlertSection({ places, operator }) {
             </ol>
           </article>
         )) : (
-          <p className={PANEL + ' text-sm text-purple-200/70'}>No stored alert drafts or delivery records.</p>
+          <p className={PANEL + ' text-sm text-slate-400'}>No stored alert drafts or delivery records.</p>
         )}
       </section>
     </div>
@@ -661,14 +700,16 @@ export default function PhaseFourDashboard({
       <section className={PANEL}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#FF6B35]">Phase 4 · Decision support</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-orange-400">Phase 4 · Decision support</p>
             <h1 className="mt-1 font-display text-xl font-bold text-white">Operational Intelligence</h1>
-            <p className="mt-1 text-xs text-purple-200/70" role={apiMode === 'offline' ? 'status' : undefined}>
+            <p className="mt-1 text-xs text-slate-400" role={apiMode === 'offline' ? 'status' : undefined}>
               {apiMode === 'offline'
-                ? 'API unavailable · no live records loaded'
-                : apiMode === 'connecting'
-                  ? 'Connecting to the live API…'
-                  : `${reportCount} stored reports · ${incidents.length} stored incidents · ${resources.length} resource records`}
+                ? 'API Offline · backend is unreachable'
+                : apiMode === 'online-anonymous'
+                  ? `${reportCount} stored report${reportCount === 1 ? '' : 's'} · Sign in as operator for automated pattern intelligence`
+                  : apiMode === 'connecting'
+                    ? 'Connecting to the live API…'
+                    : `${reportCount} stored report${reportCount === 1 ? '' : 's'} · ${incidents.length} stored incident${incidents.length === 1 ? '' : 's'} · ${resources.length} resource records`}
             </p>
           </div>
           <nav aria-label="Operational intelligence sections" className="flex flex-wrap gap-2">
@@ -677,10 +718,10 @@ export default function PhaseFourDashboard({
                 key={key}
                 type="button"
                 onClick={() => setSection(key)}
-                className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors cursor-pointer ${
                   section === key
-                    ? 'border-[#FF6B35]/50 bg-[#FF6B35] text-white'
-                    : 'border-purple-300/20 bg-[#120721] text-purple-100'
+                    ? 'border-orange-500/50 bg-orange-600 text-white shadow-sm'
+                    : 'border-slate-800 bg-slate-900 text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 {title}

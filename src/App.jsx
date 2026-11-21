@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  checkBackendHealth,
   fetchIncidentsData,
   postFieldReport,
   postVoiceReport,
@@ -83,6 +84,7 @@ export default function App() {
   const [isApprovingBrief, setIsApprovingBrief] = useState(false);
   const [toastBanner, setToastBanner] = useState(null);
   const dashboardRequestInFlight = useRef(false);
+  const healthCheckInFlight = useRef(false);
   const knownReportIds = useRef(null);
 
   // Defensive cleanup: purge any legacy credentials from browser storage on mount
@@ -107,18 +109,76 @@ export default function App() {
     }, 4200);
   };
 
+  const refreshBackendHealth = async () => {
+    if (healthCheckInFlight.current) return;
+    healthCheckInFlight.current = true;
+    try {
+      const health = await checkBackendHealth();
+      if (health.ok) {
+        setApiError('');
+        if (!operatorCredentials) {
+          setApiMode('online-anonymous');
+        }
+        return health;
+      } else {
+        setApiError(health.error || 'Backend is unreachable.');
+        if (!operatorCredentials || incidents.length === 0) {
+          setApiMode('offline');
+        } else {
+          setApiMode('snapshot-retained');
+        }
+        return health;
+      }
+    } catch (err) {
+      setApiError(err.message || 'Backend health check failed.');
+      if (!operatorCredentials || incidents.length === 0) {
+        setApiMode('offline');
+      } else {
+        setApiMode('snapshot-retained');
+      }
+      return { ok: false, error: err.message };
+    } finally {
+      healthCheckInFlight.current = false;
+    }
+  };
+
   const refreshDashboardData = async (
     manual = false,
     credentials = operatorCredentials
   ) => {
+    // If not authenticated as operator, check health instead of requesting protected /incidents
+    if (!credentials?.username || !credentials?.password) {
+      if (manual) setIsSyncing(true);
+      try {
+        const health = await refreshBackendHealth();
+        return { source: health?.ok ? 'online-anonymous' : 'offline', health };
+      } finally {
+        if (manual) setIsSyncing(false);
+      }
+    }
+
     if (dashboardRequestInFlight.current) return { source: 'busy' };
     dashboardRequestInFlight.current = true;
     if (manual) setIsSyncing(true);
     try {
       const snapshot = await fetchIncidentsData(credentials);
+      if (snapshot.source === 'unauthorized') {
+        setApiError(snapshot.error || 'Operator credentials are required for operational data.');
+        if (incidents.length > 0) {
+          setApiMode('snapshot-retained');
+        } else {
+          setApiMode('online-anonymous');
+        }
+        return snapshot;
+      }
+
       if (snapshot.source !== 'flask-api') {
         setApiError(snapshot.error || 'Backend is unavailable.');
-        setApiMode('offline');
+        if (incidents.length > 0) {
+          setApiMode('snapshot-retained');
+        } else {
+          setApiMode('offline');
+        }
         return snapshot;
       }
 
@@ -149,7 +209,11 @@ export default function App() {
       return snapshot;
     } catch (error) {
       setApiError(error.message || 'Backend is unavailable.');
-      setApiMode('offline');
+      if (incidents.length > 0) {
+        setApiMode('snapshot-retained');
+      } else {
+        setApiMode('offline');
+      }
       return { source: 'unavailable', error: error.message };
     } finally {
       dashboardRequestInFlight.current = false;
@@ -158,12 +222,46 @@ export default function App() {
   };
 
   const syncWithFlaskApi = async () => {
-    const result = await refreshDashboardData(true);
+    if (!operatorCredentials) {
+      if (healthCheckInFlight.current) return;
+      setIsSyncing(true);
+      try {
+        const health = await refreshBackendHealth();
+        if (health?.ok) {
+          triggerToast(
+            'API Online',
+            'Backend is healthy and responding. Sign in as an operator to view live incidents.',
+            'emerald'
+          );
+        } else {
+          triggerToast(
+            'API Offline',
+            'Backend health check failed. Could not reach Flask service.',
+            'orange'
+          );
+        }
+      } catch (err) {
+        setApiMode('offline');
+        setApiError(err.message);
+        triggerToast('API Offline', 'Backend health check failed.', 'orange');
+      } finally {
+        setIsSyncing(false);
+      }
+      return;
+    }
+
+    const result = await refreshDashboardData(true, operatorCredentials);
     if (result.source === 'flask-api') {
       triggerToast(
         'Dashboard Refreshed',
         'Incident, report, resource, and risk data were loaded from Flask.',
         'emerald'
+      );
+    } else if (result.source === 'unauthorized') {
+      triggerToast(
+        'Authentication Required',
+        result.error || 'Operator credentials expired or invalid.',
+        'orange'
       );
     } else {
       triggerToast(
@@ -176,13 +274,17 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    const refresh = () => {
-      if (active && document.visibilityState === 'visible') {
-        refreshDashboardData();
+    const poll = async () => {
+      if (!active || document.visibilityState !== 'visible') return;
+      if (operatorCredentials) {
+        await refreshDashboardData(false, operatorCredentials);
+      } else {
+        await refreshBackendHealth();
       }
     };
-    refresh();
-    const timer = window.setInterval(refresh, 15000);
+    poll();
+    const intervalMs = operatorCredentials ? 15000 : 30000;
+    const timer = window.setInterval(poll, intervalMs);
     return () => {
       active = false;
       window.clearInterval(timer);
@@ -241,7 +343,10 @@ export default function App() {
 
   // Dashboard counters
   const incidentCount = activeIncidents.length;
-  const hasOperationalData = apiMode === 'flask-api' || Boolean(lastSyncAt);
+  const hasOperationalData =
+    (apiMode === 'flask-api' || apiMode === 'snapshot-retained') &&
+    Boolean(operatorCredentials) &&
+    (incidents.length > 0 || reports.length > 0);
 
   const reportCount = reports.length;
   const awaitingReviewCount = reports.filter(
@@ -355,10 +460,12 @@ export default function App() {
     setResources([]);
     setBrief(null);
     setRiskAssessment(null);
+    setSelectedIncidentId(null);
     setIncomingReportIds([]);
     knownReportIds.current = null;
-    setApiMode('connecting');
-    setApiError('Sign in as an authorized viewer or operator to load control-room data.');
+    setLastSyncAt(null);
+    setApiMode('online-anonymous');
+    setApiError('');
   };
 
   const handleVerifyReport = async (reportId, status) => {
@@ -860,11 +967,11 @@ export default function App() {
               <div className="rq-page rq-access-wrap">{renderOperatorAccess()}</div>
               <PhaseFourDashboard
                 apiMode={apiMode}
-                incidents={apiMode === 'flask-api' ? incidents : []}
-                reports={apiMode === 'flask-api' ? reports : []}
-                resources={apiMode === 'flask-api' ? resources : []}
-                places={apiMode === 'flask-api' ? places : []}
-                brief={apiMode === 'flask-api' ? brief : null}
+                incidents={incidents}
+                reports={reports}
+                resources={resources}
+                places={places}
+                brief={brief}
                 setBrief={setBrief}
                 operator={operatorCredentials}
                 onGenerateBrief={handleGenerateBrief}
@@ -901,13 +1008,19 @@ export default function App() {
                 <div className="rq-sync-summary" role="status" title={apiError || undefined}>
                   <span className={`rq-sync-dot ${apiMode === 'flask-api' ? 'is-live' : ''}`} />
                   <span>
-                    {apiMode === 'offline'
-                      ? lastSyncAt
-                        ? `Offline · last sync ${new Date(lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                        : 'API unavailable · no live data loaded'
-                      : lastSyncAt
-                        ? `Updated ${new Date(lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                        : 'Waiting for first sync'}
+                    {apiMode === 'flask-api'
+                      ? (lastSyncAt
+                          ? `Live operational data · Updated ${new Date(lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                          : 'Live operational data')
+                      : apiMode === 'snapshot-retained'
+                        ? (lastSyncAt
+                            ? `Last successful snapshot · Sync ${new Date(lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                            : 'Last successful snapshot')
+                        : apiMode === 'online-anonymous'
+                          ? 'API Online · Sign in for operational data'
+                          : apiMode === 'connecting'
+                            ? 'Connecting…'
+                            : 'API Offline'}
                   </span>
                   {incomingReportIds.length > 0 && (
                     <button
@@ -1013,6 +1126,7 @@ export default function App() {
                           onTypeFilterChange={setMapTypeFilter}
                           verificationFilter={mapVerificationFilter}
                           onVerificationFilterChange={setMapVerificationFilter}
+                          riskAssessment={riskAssessment}
                         />
                       </div>
                     </div>

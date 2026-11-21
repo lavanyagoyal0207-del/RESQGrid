@@ -25,7 +25,7 @@ describe('LandingPage', () => {
       screen.getByText('One platform. Every report. Faster emergency response.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(
-      'API unavailable · no live data',
+      'API Offline',
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Report an Emergency/ }));

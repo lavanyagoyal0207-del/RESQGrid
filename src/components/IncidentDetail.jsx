@@ -40,11 +40,11 @@ export default function IncidentDetail({
 
   if (!incident) {
     return (
-      <div className="rounded-2xl bg-[#2D1B4E]/60 border border-purple-400/20 p-6 text-center shadow-lg">
+      <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-8 text-center shadow-lg">
         <p className="font-display text-sm font-semibold text-white">
           Select an Incident on the Map or Queue to Inspect Grouped Field Reports
         </p>
-        <p className="text-xs text-purple-200/70 mt-1">
+        <p className="text-xs text-slate-400 mt-1.5">
           Golden Rule: AI only suggests clusters and translations. Human operator confirmation is required.
         </p>
       </div>
@@ -121,20 +121,20 @@ export default function IncidentDetail({
   };
 
   return (
-    <div className="rq-detail-card flex flex-col rounded-2xl border overflow-hidden">
+    <div className="rq-detail-card flex flex-col rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-xl">
       {/* TOP: Type, Place, Lat/Lng, Status */}
-      <div className="p-4 border-b border-purple-400/20 bg-gradient-to-r from-[#2D1B4E] to-[#1a0b2e]">
+      <div className="p-4 border-b border-slate-800 bg-slate-900/90 backdrop-blur-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="rounded bg-[#FF6B35]/20 border border-[#FF6B35]/50 px-2 py-0.5 font-mono text-[11px] font-bold text-[#FF6B35]">
+              <span className="rounded-lg bg-orange-500/10 border border-orange-500/30 px-2.5 py-0.5 font-mono text-xs font-bold text-orange-400">
                 {incident.incident_id}
               </span>
               <span className="font-display text-lg font-bold text-white">
                 {incident.type} — {incident.place}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-purple-200/80 font-mono">
+            <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-400 font-mono">
               <span>
                 Coordinates:{' '}
                 <strong className="text-white">
@@ -145,7 +145,7 @@ export default function IncidentDetail({
               </span>
               <span>•</span>
               <span>
-                Aggregation: <strong className="text-[#FF6B35]">{incident.report_count} reports -&gt; 1 incident</strong>
+                Aggregation: <strong className="text-orange-400">{incident.report_count} reports -&gt; 1 incident</strong>
               </span>
               <span>•</span>
               <span>Severity: <strong className="text-white">{incident.severity || 'Unknown'}</strong></span>
@@ -165,7 +165,7 @@ export default function IncidentDetail({
                 type="button"
                 disabled={isSubmittingAction}
                 onClick={() => onConfirmIncident(incident.incident_id)}
-                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/50 px-3 py-1 text-xs font-bold text-white transition disabled:opacity-50"
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/50 px-3 py-1 text-xs font-bold text-white transition shadow-sm disabled:opacity-50"
               >
                 {isSubmittingAction ? 'Confirming...' : 'Confirm Incident'}
               </button>
@@ -174,9 +174,9 @@ export default function IncidentDetail({
         </div>
 
         {/* Grouping Reason Banner */}
-        <div className="mt-3 rounded-xl bg-[#120721]/90 border border-[#FF6B35]/35 px-3.5 py-2.5 flex items-start gap-2.5">
+        <div className="mt-3 rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 flex items-start gap-2.5">
           <svg
-            className="h-4 w-4 text-[#FF6B35] shrink-0 mt-0.5"
+            className="h-4 w-4 text-orange-400 shrink-0 mt-0.5"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -185,10 +185,10 @@ export default function IncidentDetail({
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <div className="text-xs">
-            <div className="font-semibold text-orange-200">
+            <div className="font-semibold text-orange-400">
               AI Clustering Logic (Status: {incident.status} — {isConfirmed ? 'Verified by Human Operator' : 'Requires Human Confirmation'}):
             </div>
-            <div className="text-purple-100/90 mt-0.5">
+            <div className="text-slate-300 mt-0.5">
               {incident.grouping_reason || 'No grouping rationale is recorded for this incident.'}
             </div>
           </div>
@@ -196,12 +196,12 @@ export default function IncidentDetail({
       </div>
 
       {/* MIDDLE: List of Grouped Reports (original_text Hindi/Punjabi + translated_text English + time) */}
-      <div className="p-4 space-y-3 max-h-[340px] overflow-y-auto bg-[#120721]/60">
+      <div className="p-4 space-y-3 max-h-[340px] overflow-y-auto bg-slate-950/80">
         <div className="flex items-center justify-between">
-          <h3 className="font-display text-xs font-bold uppercase tracking-wider text-purple-200/90">
+          <h3 className="font-display text-xs font-bold uppercase tracking-wider text-slate-300">
             Evidence and Individual Reports ({incidentReports.length})
           </h3>
-          <span className="text-[11px] text-purple-300/70">
+          <span className="text-[11px] text-slate-400">
             Each report retains its own human verification status.
           </span>
         </div>
@@ -209,12 +209,12 @@ export default function IncidentDetail({
         {incidentReports.map((rep) => (
           <div
             key={rep.report_id}
-            className="rounded-xl bg-[#2D1B4E]/75 border border-purple-300/20 p-3.5 space-y-2 shadow-sm"
+            className="rounded-xl bg-slate-900 border border-slate-800 p-3.5 space-y-2 shadow-sm"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-purple-200/75 border-b border-purple-300/15 pb-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400 border-b border-slate-800 pb-1.5">
               <div className="flex items-center gap-2">
-                <span className="font-mono font-bold text-[#FF6B35]">{rep.report_id}</span>
-                <span className="rounded bg-[#1a0b2e] px-2 py-0.5 text-purple-100 border border-purple-300/20">
+                <span className="font-mono font-bold text-orange-400">{rep.report_id}</span>
+                <span className="rounded bg-slate-950 px-2 py-0.5 text-slate-300 border border-slate-800">
                   {rep.source}
                 </span>
                 <span
@@ -235,34 +235,34 @@ export default function IncidentDetail({
 
             <div className="space-y-1.5 text-xs">
               <div>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-300/80 block">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
                   Report description / original transcript:
                 </span>
-                <p className="text-white font-medium bg-[#1a0b2e]/80 rounded-lg px-2.5 py-1.5 mt-0.5 border border-purple-300/15">
+                <p className="text-white font-medium bg-slate-950 rounded-lg px-2.5 py-1.5 mt-0.5 border border-slate-800">
                   {rep.original_text || 'No transcript or text description is available.'}
                 </p>
               </div>
               {rep.detected_language && (
-                <p className="text-purple-200/80">
-                  Detected language: <strong>{rep.detected_language}</strong>
+                <p className="text-slate-400">
+                  Detected language: <strong className="text-slate-200">{rep.detected_language}</strong>
                   {rep.transcription_status && (
-                    <> · Transcription: <strong>{rep.transcription_status}</strong></>
+                    <> · Transcription: <strong className="text-slate-200">{rep.transcription_status}</strong></>
                   )}
                 </p>
               )}
               {rep.grouping_reason && (
-                <p className="text-purple-200/80">
-                  Grouping rationale: {rep.grouping_reason}
+                <p className="text-slate-400">
+                  Grouping rationale: <span className="text-slate-300">{rep.grouping_reason}</span>
                 </p>
               )}
               {rep.verified_by && (
-                <p className="text-purple-200/80">
-                  Reviewed by {rep.verified_by} at {rep.verified_at || 'timestamp unavailable'}
+                <p className="text-slate-400">
+                  Reviewed by <strong className="text-slate-200">{rep.verified_by}</strong> at {rep.verified_at || 'timestamp unavailable'}
                 </p>
               )}
               {rep.has_audio && (
-                <div className="space-y-2 border-t border-purple-300/15 pt-2">
-                  <div className="font-semibold text-purple-100">Original recording (private S3 audio)</div>
+                <div className="space-y-2 border-t border-slate-800 pt-2">
+                  <div className="font-semibold text-slate-200">Original recording (private S3 audio)</div>
                   {audioUrls[rep.report_id] ? (
                     <audio
                       controls
@@ -278,25 +278,25 @@ export default function IncidentDetail({
                       onClick={() => handleLoadAudio(rep.report_id)}
                       disabled={!operator || audioLoading[rep.report_id]}
                       title={!operator ? 'Operator sign-in required' : ''}
-                      className="rounded-lg border border-purple-300/30 px-3 py-1.5 text-purple-100 disabled:opacity-50"
+                      className="rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 disabled:opacity-50 transition"
                     >
                       {audioLoading[rep.report_id] ? 'Loading audio...' : 'Load original audio'}
                     </button>
                   )}
                   {audioErrors[rep.report_id] && (
-                    <p role="alert" className="text-red-300">{audioErrors[rep.report_id]}</p>
+                    <p role="alert" className="text-red-400">{audioErrors[rep.report_id]}</p>
                   )}
                 </div>
               )}
               {operator && !['Confirmed', 'Rejected'].includes(
                 rep.verification_status || 'Unverified'
               ) && (
-                <div className="flex flex-wrap gap-2 border-t border-purple-300/15 pt-2">
+                <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-2">
                   <button
                     type="button"
                     disabled={isSubmittingAction}
                     onClick={() => onVerifyReport(rep.report_id, 'Confirmed')}
-                    className="rounded-lg bg-emerald-700 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                    className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 font-semibold text-white text-xs disabled:opacity-50 transition shadow-sm"
                   >
                     {isSubmittingAction ? 'Saving...' : 'Confirm report'}
                   </button>
@@ -304,7 +304,7 @@ export default function IncidentDetail({
                     type="button"
                     disabled={isSubmittingAction}
                     onClick={() => onVerifyReport(rep.report_id, 'Rejected')}
-                    className="rounded-lg bg-red-700 px-3 py-1.5 font-semibold text-white disabled:opacity-50"
+                    className="rounded-lg bg-red-600 hover:bg-red-500 px-3 py-1.5 font-semibold text-white text-xs disabled:opacity-50 transition shadow-sm"
                   >
                     {isSubmittingAction ? 'Saving...' : 'Reject report'}
                   </button>
@@ -314,20 +314,20 @@ export default function IncidentDetail({
           </div>
         ))}
         {incidentReports.length === 0 && (
-          <p className="rounded-xl border border-purple-300/15 p-3 text-xs text-purple-200/75">
+          <p className="rounded-xl border border-slate-800 p-3 text-xs text-slate-400">
             No individual reports are currently linked to this incident.
           </p>
         )}
       </div>
 
-      <section className="border-t border-purple-400/20 bg-[#1a0b2e]/80 p-4">
+      <section className="border-t border-slate-800 bg-slate-900/90 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="font-display text-xs font-bold uppercase tracking-wider text-white">
               Emergency Response Coordination
             </h3>
-            <p className="mt-1 text-[11px] text-purple-200/75">
-              Current progress: <strong className="text-orange-200">{responseStatus}</strong>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Current progress: <strong className="text-orange-400">{responseStatus}</strong>
             </p>
           </div>
           {operator && nextResponseStatuses.length > 0 && (
@@ -336,7 +336,7 @@ export default function IncidentDetail({
                 name="status"
                 required
                 defaultValue={nextResponseStatuses[0]}
-                className="rounded-lg border border-purple-300/25 bg-[#120721] px-2 py-1.5 text-xs text-white"
+                className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500"
               >
                 {nextResponseStatuses.map((status) => (
                   <option key={status} value={status}>{status}</option>
@@ -347,12 +347,12 @@ export default function IncidentDetail({
                 onChange={(event) => setResponseNotes(event.target.value)}
                 maxLength={500}
                 placeholder="Operator note (optional)"
-                className="w-48 rounded-lg border border-purple-300/25 bg-[#120721] px-2 py-1.5 text-xs text-white"
+                className="w-48 rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500"
               />
               <button
                 type="submit"
                 disabled={responseBusy || isSubmittingAction}
-                className="rounded-lg bg-[#FF6B35] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-orange-600 hover:bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 shadow-sm transition"
               >
                 {responseBusy ? 'Saving...' : 'Update response'}
               </button>
@@ -360,37 +360,37 @@ export default function IncidentDetail({
           )}
         </div>
         {responseError && (
-          <p role="alert" className="mt-2 text-xs text-red-300">{responseError}</p>
+          <p role="alert" className="mt-2 text-xs text-red-400">{responseError}</p>
         )}
         {!operator && (
-          <p className="mt-2 text-[10px] text-purple-200/60">
+          <p className="mt-2 text-[10px] text-slate-500">
             Operator sign-in is required to change response progress.
           </p>
         )}
 
         <div className="mt-3 space-y-2">
           {activeAssignments.map((assignment) => (
-            <article key={assignment.deployment_id} className="rounded-lg border border-orange-300/15 bg-[#2D1B4E]/45 px-3 py-2 text-[11px]">
+            <article key={assignment.deployment_id} className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-[11px]">
               <div className="font-semibold text-white">
                 {assignment.resource_name || assignment.resource_id} · {assignment.quantity} unit(s)
               </div>
-              <p className="text-purple-200/75">
+              <p className="text-slate-400">
                 {assignment.resource_type || 'Resource'} · {assignment.status} · Assigned by {assignment.assigned_by || 'operator'} at {assignment.assigned_at ? new Date(assignment.assigned_at).toLocaleString() : 'timestamp unavailable'}
               </p>
             </article>
           ))}
           {activeAssignments.length === 0 && (
-            <p className="text-[11px] text-purple-200/60">No resources are assigned to this incident.</p>
+            <p className="text-[11px] text-slate-500">No resources are assigned to this incident.</p>
           )}
         </div>
 
-        <div className="mt-3 border-t border-purple-300/10 pt-2">
-          <h4 className="text-[10px] font-semibold uppercase tracking-wide text-purple-200/75">
+        <div className="mt-3 border-t border-slate-800 pt-2">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
             Response and Assignment History
           </h4>
           <ol className="mt-1 space-y-1">
             {[...(incident.response_history || [])].reverse().slice(0, 8).map((entry, index) => (
-              <li key={`${entry.timestamp}-${index}`} className="text-[10px] text-purple-100/75">
+              <li key={`${entry.timestamp}-${index}`} className="text-[10px] text-slate-400">
                 {entry.action || entry.to_status || 'Operator action'}
                 {entry.to_status ? `: ${entry.from_status || '—'} -> ${entry.to_status}` : ''}
                 {entry.resource_name ? ` · ${entry.resource_name}` : ''}
@@ -400,16 +400,16 @@ export default function IncidentDetail({
               </li>
             ))}
             {!(incident.response_history || []).length && (
-              <li className="text-[10px] text-purple-200/60">No response actions recorded.</li>
+              <li className="text-[10px] text-slate-500">No response actions recorded.</li>
             )}
           </ol>
         </div>
       </section>
 
-      <div className="p-4 border-t border-purple-400/20 bg-[#2D1B4E]/80 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs text-purple-200/85">
+      <div className="p-4 border-t border-slate-800 bg-slate-900/90 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-xs text-slate-400">
           {isConfirmed ? (
-            <span className="text-emerald-300 font-semibold">
+            <span className="text-emerald-400 font-semibold">
               Incident confirmed by {incident.confirmed_by || 'authorized operator'}
               {incident.confirmed_at ? ` at ${incident.confirmed_at}` : ''}
             </span>

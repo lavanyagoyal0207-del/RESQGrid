@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  checkBackendHealth,
   fetchIncidentsData,
   generateSituationBrief,
   postFieldReport,
@@ -11,6 +12,112 @@ import {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe('backend health and connection checks', () => {
+  it('returns healthy status and metadata when GET /health succeeds', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        ok: true,
+        status: 'healthy',
+        service: 'resqgrid-backend',
+        commit: '92265929238fc3db6c060c0d3c11b18b4271f575',
+      }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await checkBackendHealth('/api');
+
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe('healthy');
+    expect(result.commit).toBe('92265929238fc3db6c060c0d3c11b18b4271f575');
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/health',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Accept: 'application/json' }),
+      }),
+    );
+  });
+
+  it('returns offline status when GET /health fails with network or server error', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await checkBackendHealth('/api');
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('offline');
+    expect(result.error).toBe('Failed to fetch');
+  });
+
+  it('distinguishes 401 unauthorized from backend unavailability in fetchIncidentsData', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        ok: false,
+        code: 'unauthorized',
+        error: 'Operator credentials are required.',
+      }), { status: 401 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchIncidentsData(null, '/api');
+
+    expect(result.source).toBe('unauthorized');
+    expect(result.status).toBe(401);
+    expect(result.error).toBe('Operator credentials are required.');
+  });
+
+  it('correctly maps risk_assessment property from realistic GET /incidents response', async () => {
+    const realisticIncidentsPayload = {
+      incidents: [
+        {
+          incident_id: 'INC-MANDI-1',
+          place: 'Mandi',
+          type: 'Flood',
+          severity: 'Critical',
+          status: 'Confirmed',
+        },
+      ],
+      reports: [],
+      places: [{ place: 'Mandi', lat: 31.7087, lng: 76.932 }],
+      resources: [],
+      brief: null,
+      risk_assessment: {
+        label: 'AI-generated recommendation — requires human review',
+        generated_at: '2026-11-21T12:00:00Z',
+        window_minutes: 30,
+        locations: [
+          {
+            place: 'Mandi',
+            lat: 31.7087,
+            lng: 76.932,
+            incident_count: 1,
+            report_count: 3,
+            requires_attention: true,
+            reasons: ['1 active incident is marked Critical.'],
+          },
+        ],
+      },
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(realisticIncidentsPayload), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await fetchIncidentsData(
+      { username: 'operator', password: 'secret' },
+      '/api',
+    );
+
+    expect(result.source).toBe('flask-api');
+    expect(result.riskAssessment).toBeDefined();
+    expect(result.riskAssessment.locations[0].place).toBe('Mandi');
+    expect(result.riskAssessment.locations[0].lat).toBe(31.7087);
+    expect(result.riskAssessment.locations[0].lng).toBe(76.932);
+    expect(result.riskAssessment.locations[0].requires_attention).toBe(true);
+  });
 });
 
 describe('citizen authentication API calls', () => {

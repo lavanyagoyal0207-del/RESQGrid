@@ -96,60 +96,75 @@ export default function OperatorAccessPanel({
   };
 
   return (
-    <section className="rq-operator-card rounded-xl border p-3 text-xs">
+    <section className="rq-operator-card rounded-2xl border border-slate-800 bg-slate-900/90 shadow-xl p-4 sm:p-5 text-xs backdrop-blur-sm">
       {operator ? (
-        <div className="rq-operator-authenticated">
-          <div className="rq-operator-emblem is-authorized">
-            <ShieldCheck size={23} strokeWidth={1.7} />
-          </div>
-          <div className="rq-operator-copy">
-            <span className="rq-operator-kicker">CONTROL ROOM ACCESS</span>
-            <div className="rq-operator-title">
-              Signed in as <strong>{operator}</strong>
+        <div className="rq-operator-authenticated flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="rq-operator-emblem flex items-center justify-center h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+              <ShieldCheck size={22} strokeWidth={2} />
             </div>
-            <p>Role: {role || 'operator'} · Tactical control room unlocked.</p>
+            <div className="rq-operator-copy">
+              <span className="rq-operator-kicker block text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                AUTHORIZED COMMAND SESSION
+              </span>
+              <div className="rq-operator-title text-sm font-bold text-white">
+                Signed in as <strong>{operator}</strong>
+              </div>
+              <p className="text-slate-400 text-xs">Role: {role || 'operator'} · Tactical control room unlocked with write privileges.</p>
+            </div>
           </div>
-          <button type="button" onClick={onLogout} className="button-secondary">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="button-secondary px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition-colors"
+          >
             Sign out
           </button>
         </div>
       ) : citizenUser ? (
-        <div className="rq-operator-authenticated">
-          <div className="rq-operator-emblem is-authorized" style={{ color: '#38bdf8' }}>
-            <UserCheck size={23} strokeWidth={1.7} />
-          </div>
-          <div className="rq-operator-copy">
-            <span className="rq-operator-kicker" style={{ color: '#38bdf8' }}>CITIZEN ACCOUNT ACTIVE</span>
-            <div className="rq-operator-title">
-              Signed in as <strong>{citizenUser.name}</strong>
+        <div className="rq-operator-authenticated flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="rq-operator-emblem flex items-center justify-center h-10 w-10 rounded-xl bg-sky-500/10 border border-sky-500/30 text-sky-400">
+              <UserCheck size={22} strokeWidth={2} />
             </div>
-            <p>{citizenUser.email} · Signed-in Citizen</p>
+            <div className="rq-operator-copy">
+              <span className="rq-operator-kicker block text-[10px] font-bold uppercase tracking-widest text-sky-400">
+                Signed-in Citizen
+              </span>
+              <div className="rq-operator-title text-sm font-bold text-white">
+                Signed in as <strong>{citizenUser.name}</strong>
+              </div>
+              <p className="text-slate-400 text-xs">{citizenUser.email} · Authenticated for field report and voice intake.</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {onOpenSubmitReport && (
               <button
                 type="button"
                 onClick={onOpenSubmitReport}
-                className="button-primary"
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
+                className="button-primary inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs shadow-sm transition-colors"
               >
                 <ClipboardPlus size={14} /> Submit Report
               </button>
             )}
-            <button type="button" onClick={onCitizenLogout} className="button-secondary">
+            <button
+              type="button"
+              onClick={onCitizenLogout}
+              className="button-secondary px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition-colors"
+            >
               Sign out
             </button>
           </div>
         </div>
       ) : (
         <div className="rq-auth-container">
-          {/* Dual Role Selector */}
-          <div className="flex border-b border-white/10 mb-3 pb-1 gap-4" role="tablist" aria-label="Authentication role">
+          {/* Dual Role Selector Tabs */}
+          <div className="flex border-b border-slate-800 mb-4 pb-1 gap-6" role="tablist" aria-label="Authentication role">
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === 'operator'}
-              className={`pb-1 px-1 font-medium transition-colors ${
+              className={`pb-2 px-1 text-xs font-semibold tracking-wide transition-colors ${
                 activeTab === 'operator'
                   ? 'border-b-2 border-orange-500 text-orange-400 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -162,7 +177,7 @@ export default function OperatorAccessPanel({
               type="button"
               role="tab"
               aria-selected={activeTab === 'citizen'}
-              className={`pb-1 px-1 font-medium transition-colors ${
+              className={`pb-2 px-1 text-xs font-semibold tracking-wide transition-colors ${
                 activeTab === 'citizen'
                   ? 'border-b-2 border-orange-500 text-orange-400 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -174,34 +189,36 @@ export default function OperatorAccessPanel({
           </div>
 
           {activeTab === 'operator' ? (
-            <form onSubmit={handleOperatorSubmit} className="rq-operator-form">
-              <div className="rq-operator-intro">
-                <span className="rq-operator-emblem" aria-hidden="true">
-                  <LockKeyhole size={22} strokeWidth={1.7} />
+            <form onSubmit={handleOperatorSubmit} className="rq-operator-form space-y-3">
+              <div className="rq-operator-intro flex items-start gap-3 mb-2">
+                <span className="rq-operator-emblem flex items-center justify-center h-8 w-8 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 shrink-0" aria-hidden="true">
+                  <LockKeyhole size={18} strokeWidth={2} />
                 </span>
                 <div className="rq-operator-copy">
-                  <span className="rq-operator-kicker">AUTHORIZED PERSONNEL</span>
-                  <h2>Operator sign-in required</h2>
-                  <p>
-                    Verify reports, approve briefs, and access private evidence.
-                    Operational data stays protected.
+                  <span className="rq-operator-kicker block text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    AUTHORIZED PERSONNEL
+                  </span>
+                  <h2 className="text-sm font-bold text-white">Operator sign-in required</h2>
+                  <p className="text-xs text-slate-400">
+                    Verify field reports, review audio evidence, and dispatch units. Operational data remains protected.
                   </p>
                 </div>
               </div>
 
-              <div className="rq-operator-fields">
-                <label>
-                  <span>Username</span>
+              <div className="rq-operator-fields grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+                <label className="block">
+                  <span className="block text-[11px] font-semibold text-slate-300 mb-1">Username</span>
                   <input
                     autoComplete="username"
                     required
                     value={operatorUsername}
                     onChange={(event) => setOperatorUsername(event.target.value)}
                     placeholder="Enter your operator ID"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
                   />
                 </label>
-                <label>
-                  <span>Password</span>
+                <label className="block">
+                  <span className="block text-[11px] font-semibold text-slate-300 mb-1">Password</span>
                   <input
                     type="password"
                     autoComplete="current-password"
@@ -209,28 +226,33 @@ export default function OperatorAccessPanel({
                     value={operatorPassword}
                     onChange={(event) => setOperatorPassword(event.target.value)}
                     placeholder="Enter your password"
+                    className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
                   />
                 </label>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rq-operator-submit"
+                  className="rq-operator-submit inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition-colors disabled:opacity-50 h-[34px]"
                 >
                   {isSubmitting ? 'Signing in...' : 'Sign in'}
-                  {!isSubmitting && <ArrowRight size={16} aria-hidden="true" />}
+                  {!isSubmitting && <ArrowRight size={14} aria-hidden="true" />}
                 </button>
               </div>
             </form>
           ) : (
-            <div>
-              <div className="rq-operator-intro">
-                <span className="rq-operator-emblem" aria-hidden="true" style={{ color: '#38bdf8' }}>
-                  {citizenMode === 'register' ? <UserPlus size={22} strokeWidth={1.7} /> : <LogIn size={22} strokeWidth={1.7} />}
+            <div className="space-y-3">
+              <div className="rq-operator-intro flex items-start gap-3 mb-2">
+                <span className="rq-operator-emblem flex items-center justify-center h-8 w-8 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 shrink-0" aria-hidden="true">
+                  {citizenMode === 'register' ? <UserPlus size={18} strokeWidth={2} /> : <LogIn size={18} strokeWidth={2} />}
                 </span>
                 <div className="rq-operator-copy">
-                  <span className="rq-operator-kicker" style={{ color: '#38bdf8' }}>COMMUNITY EMERGENCY PORTAL</span>
-                  <h2>{citizenMode === 'register' ? 'Register Citizen Account' : 'Citizen Sign In'}</h2>
-                  <p>
+                  <span className="rq-operator-kicker block text-[10px] font-bold uppercase tracking-widest text-sky-400">
+                    COMMUNITY EMERGENCY PORTAL
+                  </span>
+                  <h2 className="text-sm font-bold text-white">
+                    {citizenMode === 'register' ? 'Register Citizen Account' : 'Citizen Sign In'}
+                  </h2>
+                  <p className="text-xs text-slate-400">
                     {citizenMode === 'register'
                       ? 'Create an account to submit text and voice emergency reports.'
                       : 'Sign in to access your citizen reporting dashboard.'}
@@ -239,11 +261,11 @@ export default function OperatorAccessPanel({
               </div>
 
               {/* Mode switch */}
-              <div className="flex gap-2 my-2 text-xs">
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                    citizenMode === 'register' ? 'bg-orange-600 text-white font-medium' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    citizenMode === 'register' ? 'bg-orange-600 text-white shadow-sm' : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                   onClick={() => { setCitizenMode('register'); setErrorMessage(''); }}
                 >
@@ -251,8 +273,8 @@ export default function OperatorAccessPanel({
                 </button>
                 <button
                   type="button"
-                  className={`px-2.5 py-1 rounded text-xs transition-colors ${
-                    citizenMode === 'login' ? 'bg-orange-600 text-white font-medium' : 'bg-white/5 text-slate-300 hover:bg-white/10'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    citizenMode === 'login' ? 'bg-orange-600 text-white shadow-sm' : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                   onClick={() => { setCitizenMode('login'); setErrorMessage(''); }}
                 >
@@ -261,20 +283,21 @@ export default function OperatorAccessPanel({
               </div>
 
               <form onSubmit={handleCitizenSubmit} className="rq-operator-form">
-                <div className="rq-operator-fields">
+                <div className="rq-operator-fields grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
                   {citizenMode === 'register' && (
-                    <label>
-                      <span>Full Name</span>
+                    <label className="block">
+                      <span className="block text-[11px] font-semibold text-slate-300 mb-1">Full Name</span>
                       <input
                         required
                         value={citizenName}
                         onChange={(e) => setCitizenName(e.target.value)}
                         placeholder="Your full name"
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
                       />
                     </label>
                   )}
-                  <label>
-                    <span>Email Address</span>
+                  <label className="block">
+                    <span className="block text-[11px] font-semibold text-slate-300 mb-1">Email Address</span>
                     <input
                       type="email"
                       autoComplete="email"
@@ -282,10 +305,11 @@ export default function OperatorAccessPanel({
                       value={citizenEmail}
                       onChange={(e) => setCitizenEmail(e.target.value)}
                       placeholder="you@example.com"
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
                     />
                   </label>
-                  <label>
-                    <span>Password</span>
+                  <label className="block">
+                    <span className="block text-[11px] font-semibold text-slate-300 mb-1">Password</span>
                     <input
                       type="password"
                       autoComplete={citizenMode === 'register' ? 'new-password' : 'current-password'}
@@ -293,17 +317,18 @@ export default function OperatorAccessPanel({
                       value={citizenPassword}
                       onChange={(e) => setCitizenPassword(e.target.value)}
                       placeholder={citizenMode === 'register' ? 'Min 8 characters' : 'Enter your password'}
+                      className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-orange-500"
                     />
                   </label>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="rq-operator-submit"
+                    className="rq-operator-submit inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs transition-colors disabled:opacity-50 h-[34px]"
                   >
                     {isSubmitting
-                      ? (citizenMode === 'register' ? 'Registering...' : 'Signing in...')
-                      : (citizenMode === 'register' ? 'Create Account' : 'Sign in')}
-                    {!isSubmitting && <ArrowRight size={16} aria-hidden="true" />}
+                      ? citizenMode === 'register' ? 'Creating...' : 'Signing in...'
+                      : citizenMode === 'register' ? 'Create Account' : 'Sign in'}
+                    {!isSubmitting && <ArrowRight size={14} aria-hidden="true" />}
                   </button>
                 </div>
               </form>
@@ -311,10 +336,15 @@ export default function OperatorAccessPanel({
           )}
 
           {errorMessage && (
-            <p role="alert" className="rq-operator-error mt-2">{errorMessage}</p>
+            <div className="mt-3 p-2.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs" role="alert">
+              {errorMessage}
+            </div>
           )}
+
           {successMessage && (
-            <p role="status" className="text-emerald-400 mt-2 text-xs">{successMessage}</p>
+            <div className="mt-3 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs">
+              {successMessage}
+            </div>
           )}
         </div>
       )}

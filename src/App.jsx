@@ -69,6 +69,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeView, setActiveView] = useState('home');
+  const [accessPanelTab, setAccessPanelTab] = useState('citizen');
   const [evidenceTab, setEvidenceTab] = useState('incidents');
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
 
@@ -424,6 +425,16 @@ export default function App() {
     triggerToast('Signed Out', 'You have been signed out of your citizen account.', 'slate');
   };
 
+  const handleOpenOperatorLogin = () => {
+    setAccessPanelTab('operator');
+    setActiveView('control-room');
+  };
+
+  const handleOpenCitizenLogin = () => {
+    setAccessPanelTab('citizen');
+    setActiveView('control-room');
+  };
+
   const handleOperatorLogin = async (credentials) => {
     const result = await verifyOperatorCredentials(credentials);
     if (!result.ok) {
@@ -437,7 +448,9 @@ export default function App() {
     };
     // Kept in React memory only for active tab session
     setOperatorCredentials(authenticatedCredentials);
+    setAccessPanelTab('operator');
     await refreshDashboardData(false, authenticatedCredentials);
+    setActiveView('control-room');
     triggerToast(
       'Operator Signed In',
       `Authenticated as ${result.data.operator} (${authenticatedCredentials.role}).`,
@@ -885,7 +898,7 @@ export default function App() {
       operator={operatorCredentials?.username}
       role={operatorCredentials?.role}
       citizenUser={citizenUser}
-      defaultTab={operatorCredentials ? 'operator' : 'citizen'}
+      defaultTab={operatorCredentials ? 'operator' : accessPanelTab}
       defaultCitizenMode="login"
       onLogin={handleOperatorLogin}
       onLogout={handleOperatorLogout}
@@ -905,6 +918,7 @@ export default function App() {
           apiMode={apiMode}
           onReport={() => setActiveView('submit-page')}
           onOpenControlRoom={() => setActiveView('control-room')}
+          onOpenOperatorLogin={handleOpenOperatorLogin}
         />
       ) : (
         <>
@@ -925,6 +939,8 @@ export default function App() {
             onLogout={handleOperatorLogout}
             citizenUser={citizenUser}
             onCitizenLogout={handleCitizenLogout}
+            onOpenOperatorLogin={handleOpenOperatorLogin}
+            onOpenCitizenLogin={handleOpenCitizenLogin}
           />
 
           {toastBanner && (

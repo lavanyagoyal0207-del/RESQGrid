@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Globe2,
   Layers,
+  LockKeyhole,
   Radio,
   ShieldAlert,
   ShieldCheck,
@@ -24,6 +25,7 @@ export default function LandingPage({
   apiMode,
   onReport,
   onOpenControlRoom,
+  onOpenOperatorLogin,
 }) {
   return (
     <main className="landing-page text-slate-100 min-h-screen flex flex-col justify-between">
@@ -43,7 +45,16 @@ export default function LandingPage({
           </span>
         </a>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            className="landing-operator-btn px-3 py-1.5 rounded-lg bg-orange-600/15 hover:bg-orange-600/25 border border-orange-500/40 text-xs font-semibold text-orange-300 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+            onClick={onOpenOperatorLogin || onOpenControlRoom}
+            aria-label="Operator login"
+          >
+            <LockKeyhole size={13} className="text-orange-400" />
+            <span>Operator Login</span>
+          </button>
           <span
             className={`landing-status status-${apiMode} inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border ${
               apiMode === 'flask-api' || apiMode === 'live-operational'
@@ -106,6 +117,14 @@ export default function LandingPage({
             onClick={onOpenControlRoom}
           >
             Explore Control Room <ArrowUpRight size={17} />
+          </button>
+          <button
+            type="button"
+            className="button-operator inline-flex items-center gap-2 px-5 py-3.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-orange-500/40 hover:border-orange-500/70 text-orange-300 font-semibold text-sm transition-all focus:ring-2 focus:ring-orange-400 focus:outline-none"
+            onClick={onOpenOperatorLogin || onOpenControlRoom}
+          >
+            <LockKeyhole size={16} className="text-orange-400" />
+            Operator Access
           </button>
         </div>
 

@@ -345,4 +345,78 @@ describe('ResQGrid Connection Lifecycle and Security Regression Tests', () => {
     // Must NOT claim API is unavailable
     expect(screen.queryByText(/API unavailable/i)).not.toBeInTheDocument();
   });
+
+  it('Scenario 12: Direct operator login navigates to operator form, authenticates, redirects to operator dashboard, and loads protected incidents', async () => {
+    vi.spyOn(api, 'checkBackendHealth').mockResolvedValue({
+      ok: true,
+      status: 'healthy',
+      service: 'resqgrid-backend',
+    });
+    const incidentsSpy = vi.spyOn(api, 'fetchIncidentsData').mockResolvedValue({
+      source: 'flask-api',
+      incidents: [
+        {
+          incident_id: 'INC-DIRECT-1',
+          type: 'Flood',
+          place: 'Mandi',
+          severity: 'Critical',
+          status: 'Confirmed',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      reports: [
+        {
+          report_id: 'REP-DIRECT-1',
+          place: 'Mandi',
+          type: 'Flood',
+          severity: 'Critical',
+          original_text: 'Highway washed away near river',
+          verification_status: 'Confirmed',
+        },
+      ],
+      places: [],
+      resources: [],
+      brief: null,
+      riskAssessment: null,
+    });
+    vi.spyOn(api, 'verifyOperatorCredentials').mockResolvedValue({
+      ok: true,
+      data: {
+        operator: 'command-lead',
+        role: 'commander',
+      },
+    });
+
+    render(<App />);
+
+    // Click direct Operator Login button on LandingPage
+    const operatorLoginBtn = screen.getByRole('button', { name: /^Operator Login$/i });
+    fireEvent.click(operatorLoginBtn);
+
+    // Operator Access tab should be directly active and fields ready
+    expect(screen.getByRole('tab', { name: /Operator access/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByPlaceholderText('Enter your operator ID')).toBeInTheDocument();
+
+    // Enter operator credentials
+    fireEvent.change(screen.getByPlaceholderText('Enter your operator ID'), {
+      target: { value: 'command-lead' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), {
+      target: { value: 'tactical-pass' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    // Protected operational data must load and operator dashboard is active
+    await waitFor(() => {
+      expect(incidentsSpy).toHaveBeenCalled();
+    });
+
+    // Operator command session must be visible
+    expect(screen.getByText(/AUTHORIZED COMMAND SESSION/i)).toBeInTheDocument();
+    expect(screen.getAllByText('command-lead')[0]).toBeInTheDocument();
+
+    // Protected incident must appear in the incident feed
+    expect(await screen.findByText('INC-DIRECT-1')).toBeInTheDocument();
+  });
 });

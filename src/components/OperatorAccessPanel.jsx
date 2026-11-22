@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, LockKeyhole, ShieldCheck, UserCheck, UserPlus, LogIn, ClipboardPlus } from 'lucide-react';
 
 export default function OperatorAccessPanel({
@@ -18,6 +18,12 @@ export default function OperatorAccessPanel({
     operator ? 'operator' : citizenUser ? 'citizen' : defaultTab
   );
   const [citizenMode, setCitizenMode] = useState(defaultCitizenMode || 'login');
+
+  useEffect(() => {
+    if (defaultTab && !operator && !citizenUser) {
+      setActiveTab(defaultTab);
+    }
+  }, [defaultTab, operator, citizenUser]);
 
   // Operator form states
   const [operatorUsername, setOperatorUsername] = useState('');

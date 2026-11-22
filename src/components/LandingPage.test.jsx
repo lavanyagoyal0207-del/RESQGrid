@@ -7,12 +7,14 @@ describe('LandingPage', () => {
   it('presents the emergency value proposition and keeps both actions wired', () => {
     const onReport = vi.fn();
     const onOpenControlRoom = vi.fn();
+    const onOpenOperatorLogin = vi.fn();
 
     render(
       <LandingPage
         apiMode="offline"
         onReport={onReport}
         onOpenControlRoom={onOpenControlRoom}
+        onOpenOperatorLogin={onOpenOperatorLogin}
       />,
     );
 
@@ -28,10 +30,12 @@ describe('LandingPage', () => {
       'API Offline',
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Report an Emergency/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Explore Control Room/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Report an Emergency/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Explore Control Room/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Operator Login/i }));
 
     expect(onReport).toHaveBeenCalledOnce();
     expect(onOpenControlRoom).toHaveBeenCalledOnce();
+    expect(onOpenOperatorLogin).toHaveBeenCalledOnce();
   });
 });

@@ -4,6 +4,7 @@ import {
   Bell,
   ClipboardPlus,
   Home,
+  LockKeyhole,
   LogOut,
   Map,
   Radio,
@@ -46,6 +47,8 @@ export default function TopBar({
   onLogout,
   citizenUser,
   onCitizenLogout,
+  onOpenOperatorLogin,
+  onOpenCitizenLogin,
 }) {
   const connection = apiMode === 'snapshot-retained' || (apiMode === 'offline' && lastSyncAt)
     ? CONNECTION['snapshot-retained']
@@ -163,35 +166,57 @@ export default function TopBar({
               </button>
             </div>
           ) : citizenUser ? (
-            <div
-              className="rq-profile flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs"
-              title={`Signed in as ${citizenUser.name} · Citizen`}
-            >
-              <span className="rq-profile-avatar flex items-center justify-center h-6 w-6 rounded bg-sky-600 text-white font-bold text-xs">
-                {citizenUser.name.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="rq-profile-copy hidden md:flex flex-col text-left">
-                <strong className="text-white text-[11px] leading-none">{citizenUser.name}</strong>
-                <small className="text-sky-400 text-[9px] uppercase tracking-wide">Citizen</small>
-              </span>
+            <div className="flex items-center gap-2">
+              <div
+                className="rq-profile flex items-center gap-2 px-2 py-1 rounded-lg bg-slate-900 border border-slate-800 text-xs"
+                title={`Signed in as ${citizenUser.name} · Citizen`}
+              >
+                <span className="rq-profile-avatar flex items-center justify-center h-6 w-6 rounded bg-sky-600 text-white font-bold text-xs">
+                  {citizenUser.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="rq-profile-copy hidden md:flex flex-col text-left">
+                  <strong className="text-white text-[11px] leading-none">{citizenUser.name}</strong>
+                  <small className="text-sky-400 text-[9px] uppercase tracking-wide">Citizen</small>
+                </span>
+                <button
+                  type="button"
+                  className="rq-logout-button p-1 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  onClick={onCitizenLogout}
+                  aria-label="Sign out"
+                >
+                  <LogOut size={13} />
+                </button>
+              </div>
               <button
                 type="button"
-                className="rq-logout-button p-1 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                onClick={onCitizenLogout}
-                aria-label="Sign out"
+                className="rq-operator-switch-link px-2.5 py-1 rounded-lg bg-orange-600/15 hover:bg-orange-600/25 border border-orange-500/30 text-[11px] font-semibold text-orange-300 transition-colors inline-flex items-center gap-1"
+                onClick={onOpenOperatorLogin || (() => onSelectView('control-room'))}
+                aria-label="Switch to operator login"
               >
-                <LogOut size={13} />
+                <LockKeyhole size={11} className="text-orange-400" />
+                <span>Operator</span>
               </button>
             </div>
           ) : (
-            <button
-              type="button"
-              className="rq-operator-link px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-200 transition-colors inline-flex items-center gap-1"
-              onClick={() => onSelectView('control-room')}
-              aria-label="Open sign-in or register"
-            >
-              Sign In / Register <span aria-hidden="true">↗</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rq-operator-link px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white border border-orange-500 text-xs font-semibold transition-colors inline-flex items-center gap-1.5 shadow-sm"
+                onClick={onOpenOperatorLogin || (() => onSelectView('control-room'))}
+                aria-label="Open operator login"
+              >
+                <LockKeyhole size={13} className="text-white" />
+                <span>Operator Login</span>
+              </button>
+              <button
+                type="button"
+                className="rq-citizen-link px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 transition-colors inline-flex items-center gap-1"
+                onClick={onOpenCitizenLogin || (() => onSelectView('control-room'))}
+                aria-label="Open citizen portal"
+              >
+                <span>Citizen Portal</span>
+              </button>
+            </div>
           )}
         </div>
       </div>

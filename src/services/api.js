@@ -1,7 +1,7 @@
 const rawApiBase =
   import.meta.env?.VITE_FLASK_API_URL ||
   (import.meta.env?.PROD ? 'https://resqgrid-4qes.onrender.com' : '');
-const DEFAULT_API_BASE = typeof rawApiBase === 'string' ? rawApiBase.replace(/\/+$/, '') : '';
+export const DEFAULT_API_BASE = typeof rawApiBase === 'string' ? rawApiBase.replace(/\/+$/, '') : '';
 const DEFAULT_REQUEST_TIMEOUT_MS = 20000;
 
 async function fetchWithTimeout(url, { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...options } = {}) {
@@ -389,8 +389,39 @@ export async function verifyReport(
   reportId,
   status,
   credentials,
-  apiBase = DEFAULT_API_BASE
+  apiBaseOrReason = DEFAULT_API_BASE,
+  optionalParam = ''
 ) {
+  let apiBase = DEFAULT_API_BASE;
+  let reason = '';
+
+  if (typeof apiBaseOrReason === 'string') {
+    const isUrlOrPath =
+      apiBaseOrReason === '' ||
+      apiBaseOrReason.startsWith('http://') ||
+      apiBaseOrReason.startsWith('https://') ||
+      apiBaseOrReason.startsWith('/');
+
+    if (isUrlOrPath) {
+      apiBase = apiBaseOrReason;
+      reason = typeof optionalParam === 'string' ? optionalParam : '';
+    } else {
+      reason = apiBaseOrReason;
+      apiBase =
+        typeof optionalParam === 'string' && optionalParam
+          ? optionalParam
+          : DEFAULT_API_BASE;
+    }
+  } else if (typeof apiBaseOrReason === 'object' && apiBaseOrReason !== null) {
+    apiBase = apiBaseOrReason.apiBase || DEFAULT_API_BASE;
+    reason = apiBaseOrReason.reason || '';
+  }
+
+  const payload = { status };
+  if (reason && reason.trim()) {
+    payload.reason = reason.trim();
+  }
+
   try {
     const response = await fetchWithTimeout(
       `${apiBase}/reports/${encodeURIComponent(reportId)}/verification`,
@@ -400,7 +431,7 @@ export async function verifyReport(
           ...getAuthorizationHeader(credentials),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(payload),
       }
     );
     const data = await readJsonResponse(response);

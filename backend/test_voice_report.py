@@ -651,6 +651,31 @@ class BackendWorkflowTests(unittest.TestCase):
         self.assertEqual(values[":operator"], "operator-a")
         self.assertEqual(values[":review_status"], "Reviewed")
 
+    def test_operator_can_reject_report_with_reason(self):
+        report = {
+            "report_id": "REP-REJECT",
+            "verification_status": "Unverified",
+            "original_text": "Spam test message.",
+        }
+        self.table.get_item.return_value = {"Item": report}
+        with self.operator():
+            verification = self.client.post(
+                "/reports/REP-REJECT/verification",
+                json={
+                    "status": "Rejected",
+                    "reason": "Duplicate report / invalid location"
+                }
+            )
+        self.assertEqual(verification.status_code, 200)
+        data = verification.get_json()["report"]
+        self.assertEqual(data["verification_status"], "Rejected")
+        self.assertEqual(data["rejection_reason"], "Duplicate report / invalid location")
+        values = self.table.update_item.call_args.kwargs["ExpressionAttributeValues"]
+        self.assertEqual(values[":status"], "Rejected")
+        self.assertEqual(values[":operator"], "operator-a")
+        self.assertEqual(values[":reason"], "Duplicate report / invalid location")
+        self.assertEqual(values[":review_status"], "Reviewed")
+
     def test_private_audio_route_returns_bytes_only_after_operator_auth(self):
         self.table.get_item.return_value = {
             "Item": {

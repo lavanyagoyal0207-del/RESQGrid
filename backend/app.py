@@ -2156,29 +2156,37 @@ def verify_report(report_id):
         }), 409
 
     new_status = payload["status"]
+    reason = str(payload.get("reason") or payload.get("rejection_reason") or "").strip()
     verified_at = datetime.now(timezone.utc).isoformat()
     try:
+        set_clauses = [
+            "#verification_status = :status",
+            "verified_by = :operator",
+            "verified_at = :verified_at",
+            "review_status = :review_status"
+        ]
+        expr_vals = {
+            ":status": new_status,
+            ":operator": operator,
+            ":verified_at": verified_at,
+            ":review_status": "Reviewed",
+            ":unverified": "Unverified",
+            ":corroborated": "Corroborated"
+        }
+        if reason:
+            set_clauses.append("rejection_reason = :reason")
+            expr_vals[":reason"] = reason
+
         table.update_item(
             Key={
                 "PK": f"REPORT#{report_id}",
                 "SK": "METADATA"
             },
-            UpdateExpression=(
-                "SET #verification_status = :status, "
-                "verified_by = :operator, verified_at = :verified_at, "
-                "review_status = :review_status"
-            ),
+            UpdateExpression="SET " + ", ".join(set_clauses),
             ExpressionAttributeNames={
                 "#verification_status": "verification_status"
             },
-            ExpressionAttributeValues={
-                ":status": new_status,
-                ":operator": operator,
-                ":verified_at": verified_at,
-                ":review_status": "Reviewed",
-                ":unverified": "Unverified",
-                ":corroborated": "Corroborated"
-            },
+            ExpressionAttributeValues=expr_vals,
             ConditionExpression=(
                 "attribute_not_exists(#verification_status) OR "
                 "#verification_status = :unverified OR "
@@ -2198,6 +2206,8 @@ def verify_report(report_id):
         "verified_at": verified_at,
         "review_status": "Reviewed"
     })
+    if reason:
+        report["rejection_reason"] = reason
     return jsonify({"ok": True, "report": public_report(report)})
 
 

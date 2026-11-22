@@ -8,6 +8,8 @@ import {
   registerCitizen,
   loginCitizen,
   encodeBase64Utf8,
+  verifyReport,
+  confirmIncident,
 } from './api';
 
 afterEach(() => {
@@ -401,5 +403,78 @@ describe('Unicode-safe Basic Auth encoding', () => {
     const sentAuth = fetchMock.mock.calls[0][1].headers.Authorization;
     const base64Part = sentAuth.replace('Basic ', '');
     expect(decodeBase64Utf8(base64Part)).toBe(`${credentials.username}:${credentials.password}`);
+  });
+
+  it('verifyReport sends status and operator Basic Auth header', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true, report: { report_id: 'REP-101', verification_status: 'Confirmed' } })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const credentials = { username: 'duty-commander', password: 'cmd-password' };
+    const result = await verifyReport('REP-101', 'Confirmed', credentials, '/api');
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/reports/REP-101/verification',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${encodeBase64Utf8('duty-commander:cmd-password')}`,
+        }),
+        body: JSON.stringify({ status: 'Confirmed' }),
+      }),
+    );
+  });
+
+  it('verifyReport includes rejection reason when rejecting report', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        ok: true,
+        report: { report_id: 'REP-102', verification_status: 'Rejected', rejection_reason: 'Duplicate citizen submission' }
+      })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const credentials = { username: 'duty-commander', password: 'cmd-password' };
+    const result = await verifyReport('REP-102', 'Rejected', credentials, '/api', 'Duplicate citizen submission');
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/reports/REP-102/verification',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${encodeBase64Utf8('duty-commander:cmd-password')}`,
+        }),
+        body: JSON.stringify({ status: 'Rejected', reason: 'Duplicate citizen submission' }),
+      }),
+    );
+  });
+
+  it('confirmIncident sends POST to /incidents/:id/confirm with operator Basic Auth header', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        ok: true,
+        incident: { incident_id: 'INC-201', status: 'Confirmed', confirmed_by: 'duty-commander' }
+      })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const credentials = { username: 'duty-commander', password: 'cmd-password' };
+    const result = await confirmIncident('INC-201', credentials, '/api');
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/incidents/INC-201/confirm',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: `Basic ${encodeBase64Utf8('duty-commander:cmd-password')}`,
+        }),
+      }),
+    );
   });
 });

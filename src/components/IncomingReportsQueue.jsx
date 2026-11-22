@@ -45,6 +45,9 @@ export default function IncomingReportsQueue({
   const [audioUrl, setAudioUrl] = useState(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [audioError, setAudioError] = useState('');
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const filteredReports = useMemo(() => {
     return (reports || []).filter((report) => {
@@ -88,6 +91,9 @@ export default function IncomingReportsQueue({
     setSelectedReport(report);
     setAudioUrl(null);
     setAudioError('');
+    setShowRejectForm(false);
+    setRejectReason('');
+    setActionError('');
   };
 
   const handleCloseReview = () => {
@@ -97,6 +103,9 @@ export default function IncomingReportsQueue({
     }
     setSelectedReport(null);
     setAudioError('');
+    setShowRejectForm(false);
+    setRejectReason('');
+    setActionError('');
   };
 
   const handleLoadAudio = async (reportId) => {
@@ -118,14 +127,24 @@ export default function IncomingReportsQueue({
     }
   };
 
-  const handleVerify = async (reportId, status) => {
+  const handleVerify = async (reportId, status, reason = '') => {
     if (!onVerifyReport) return;
-    const res = await onVerifyReport(reportId, status);
-    if (res?.ok && selectedReport?.report_id === reportId) {
-      setSelectedReport((prev) => ({
-        ...prev,
-        verification_status: status,
-      }));
+    setActionError('');
+    const res = await onVerifyReport(reportId, status, reason);
+    if (res?.ok) {
+      if (selectedReport?.report_id === reportId) {
+        setSelectedReport((prev) => ({
+          ...prev,
+          verification_status: status,
+          verified_by: operator || prev?.verified_by,
+          verified_at: new Date().toISOString(),
+          ...(reason ? { rejection_reason: reason } : {}),
+        }));
+      }
+      setShowRejectForm(false);
+      setRejectReason('');
+    } else if (res?.error) {
+      setActionError(res.error);
     }
   };
 
@@ -479,6 +498,86 @@ export default function IncomingReportsQueue({
               </div>
             )}
 
+            {/* Audit & Decision Details */}
+            {selectedReport.rejection_reason && (
+              <div className="rounded-xl bg-red-950/30 border border-red-800/50 p-3.5 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-red-400">
+                  <XCircle className="h-4 w-4 text-red-400" />
+                  Rejection Reason & Audit Log:
+                </div>
+                <p className="text-slate-200 pl-5">{selectedReport.rejection_reason}</p>
+                {selectedReport.verified_by && (
+                  <p className="text-[11px] text-slate-400 pl-5 pt-1">
+                    Rejected by <strong className="text-slate-200">{selectedReport.verified_by}</strong>
+                    {selectedReport.verified_at && ` at ${new Date(selectedReport.verified_at).toLocaleString()}`}.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {selectedReport.verification_status === 'Confirmed' && selectedReport.verified_by && (
+              <div className="rounded-xl bg-emerald-950/30 border border-emerald-800/50 p-3.5 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  Operator Verification Audit:
+                </div>
+                <p className="text-slate-300 pl-5">
+                  Verified and confirmed by <strong className="text-white">{selectedReport.verified_by}</strong>
+                  {selectedReport.verified_at && ` at ${new Date(selectedReport.verified_at).toLocaleString()}`}.
+                </p>
+              </div>
+            )}
+
+            {/* Rejection Input Form */}
+            {showRejectForm && (
+              <div className="rounded-xl border border-red-500/40 bg-red-950/20 p-3.5 space-y-2.5 animate-fadeIn">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="rejection-reason-input" className="text-xs font-bold text-red-300 flex items-center gap-1.5">
+                    <XCircle className="h-4 w-4 text-red-400" />
+                    Reason for Rejection (required for audit trail):
+                  </label>
+                  <span className="text-[10px] text-slate-400">Audit trail logged</span>
+                </div>
+                <textarea
+                  id="rejection-reason-input"
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="State reason for rejecting report (e.g. Duplicate report, invalid location, false alarm, spam)..."
+                  rows={2}
+                  className="w-full rounded-lg bg-slate-950 border border-slate-700 p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition-colors"
+                  autoFocus
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRejectForm(false);
+                      setRejectReason('');
+                      setActionError('');
+                    }}
+                    className="rounded-lg bg-slate-800 hover:bg-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmittingAction || !rejectReason.trim()}
+                    onClick={() => handleVerify(selectedReport.report_id, 'Rejected', rejectReason.trim())}
+                    className="rounded-lg bg-red-600 hover:bg-red-500 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    {isSubmittingAction ? 'Rejecting...' : 'Confirm Rejection'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {actionError && (
+              <div className="rounded-lg bg-red-950/50 border border-red-800 p-2.5 text-xs text-red-300">
+                {actionError}
+              </div>
+            )}
+
             {/* OPERATOR ACTION BUTTONS */}
             <div className="border-t border-slate-800 pt-4 flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs text-slate-400">
@@ -490,26 +589,31 @@ export default function IncomingReportsQueue({
               </div>
 
               <div className="flex items-center gap-2">
-                {operator && (
+                {['Confirmed', 'Rejected'].includes(selectedReport.verification_status) ? (
+                  <span className="text-xs text-slate-400 italic">
+                    Decision recorded ({selectedReport.verification_status})
+                    {selectedReport.verified_by ? ` by ${selectedReport.verified_by}` : ''}.
+                  </span>
+                ) : operator ? (
                   <>
                     <button
                       type="button"
-                      disabled={isSubmittingAction}
+                      disabled={isSubmittingAction || showRejectForm}
                       onClick={() => handleVerify(selectedReport.report_id, 'Confirmed')}
                       className="rounded-lg bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/50 px-3.5 py-1.5 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                     >
                       <CheckCircle2 className="h-4 w-4" />
-                      {isSubmittingAction ? 'Saving...' : 'Confirm Report'}
+                      {isSubmittingAction ? 'Saving...' : 'Verify Report'}
                     </button>
 
                     <button
                       type="button"
-                      disabled={isSubmittingAction}
-                      onClick={() => handleVerify(selectedReport.report_id, 'Rejected')}
+                      disabled={isSubmittingAction || showRejectForm}
+                      onClick={() => setShowRejectForm(true)}
                       className="rounded-lg bg-red-600 hover:bg-red-500 border border-red-500/50 px-3.5 py-1.5 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                     >
                       <XCircle className="h-4 w-4" />
-                      {isSubmittingAction ? 'Saving...' : 'Reject Report'}
+                      Reject Report
                     </button>
 
                     {selectedReport.incident_id && onConfirmIncident && (
@@ -524,7 +628,7 @@ export default function IncomingReportsQueue({
                       </button>
                     )}
                   </>
-                )}
+                ) : null}
 
                 <button
                   type="button"

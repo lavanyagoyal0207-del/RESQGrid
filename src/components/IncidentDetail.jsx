@@ -23,6 +23,8 @@ export default function IncidentDetail({
   const [responseError, setResponseError] = useState('');
   const [responseBusy, setResponseBusy] = useState(false);
   const [responseNotes, setResponseNotes] = useState('');
+  const [rejectingReportId, setRejectingReportId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
   const audioUrlsRef = useRef(new Set());
 
   useEffect(() => () => {
@@ -260,6 +262,11 @@ export default function IncidentDetail({
                   Reviewed by <strong className="text-slate-200">{rep.verified_by}</strong> at {rep.verified_at || 'timestamp unavailable'}
                 </p>
               )}
+              {rep.rejection_reason && (
+                <p className="text-red-400">
+                  Rejection reason: <span className="text-slate-300">{rep.rejection_reason}</span>
+                </p>
+              )}
               {rep.has_audio && (
                 <div className="space-y-2 border-t border-slate-800 pt-2">
                   <div className="font-semibold text-slate-200">Original recording (private S3 audio)</div>
@@ -291,23 +298,68 @@ export default function IncidentDetail({
               {operator && !['Confirmed', 'Rejected'].includes(
                 rep.verification_status || 'Unverified'
               ) && (
-                <div className="flex flex-wrap gap-2 border-t border-slate-800 pt-2">
-                  <button
-                    type="button"
-                    disabled={isSubmittingAction}
-                    onClick={() => onVerifyReport(rep.report_id, 'Confirmed')}
-                    className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 font-semibold text-white text-xs disabled:opacity-50 transition shadow-sm"
-                  >
-                    {isSubmittingAction ? 'Saving...' : 'Confirm report'}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmittingAction}
-                    onClick={() => onVerifyReport(rep.report_id, 'Rejected')}
-                    className="rounded-lg bg-red-600 hover:bg-red-500 px-3 py-1.5 font-semibold text-white text-xs disabled:opacity-50 transition shadow-sm"
-                  >
-                    {isSubmittingAction ? 'Saving...' : 'Reject report'}
-                  </button>
+                <div className="space-y-2 border-t border-slate-800 pt-2">
+                  {rejectingReportId === rep.report_id ? (
+                    <div className="space-y-2 bg-red-950/20 border border-red-500/40 p-2.5 rounded-lg">
+                      <label className="text-[11px] font-bold text-red-300 block">
+                        Reason for rejection (required):
+                      </label>
+                      <input
+                        type="text"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="e.g. Duplicate report, false alarm..."
+                        className="w-full rounded bg-slate-950 border border-slate-700 px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRejectingReportId(null);
+                            setRejectReason('');
+                          }}
+                          className="px-2 py-1 rounded bg-slate-800 text-slate-300 text-xs hover:bg-slate-700"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSubmittingAction || !rejectReason.trim()}
+                          onClick={() => {
+                            onVerifyReport(rep.report_id, 'Rejected', rejectReason.trim());
+                            setRejectingReportId(null);
+                            setRejectReason('');
+                          }}
+                          className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-semibold text-xs disabled:opacity-50"
+                        >
+                          {isSubmittingAction ? 'Rejecting...' : 'Confirm rejection'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={isSubmittingAction}
+                        onClick={() => onVerifyReport(rep.report_id, 'Confirmed')}
+                        className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 font-semibold text-white text-xs disabled:opacity-50 transition shadow-sm"
+                      >
+                        {isSubmittingAction ? 'Saving...' : 'Confirm report'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSubmittingAction}
+                        onClick={() => {
+                          setRejectingReportId(rep.report_id);
+                          setRejectReason('');
+                        }}
+                        className="rounded-lg bg-red-600 hover:bg-red-500 px-3 py-1.5 font-semibold text-white text-xs disabled:opacity-50 transition shadow-sm"
+                      >
+                        Reject report
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

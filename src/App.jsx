@@ -7,6 +7,7 @@ import {
   postVoiceReport,
   registerCitizen,
   loginCitizen,
+  DEFAULT_API_BASE,
   verifyOperatorCredentials,
   verifyReport,
   confirmIncident,
@@ -481,7 +482,7 @@ export default function App() {
     setApiError('');
   };
 
-  const handleVerifyReport = async (reportId, status) => {
+  const handleVerifyReport = async (reportId, status, reason = '') => {
     if (!operatorCanMutate) {
       return { ok: false, error: 'Sign in as an authorized operator first.' };
     }
@@ -491,7 +492,9 @@ export default function App() {
       const result = await verifyReport(
         reportId,
         status,
-        operatorCredentials
+        operatorCredentials,
+        DEFAULT_API_BASE,
+        reason
       );
       if (!result.ok) {
         triggerToast('Report Verification Failed', result.error, 'red');
@@ -511,7 +514,7 @@ export default function App() {
 
       triggerToast(
         `Report ${status}`,
-        `${reportId} ${status.toLowerCase()} by ${operatorCredentials.username}.`,
+        `${reportId} ${status.toLowerCase()} by ${operatorCredentials.username}.${reason ? ` Reason: ${reason}` : ''}`,
         status === 'Confirmed' ? 'emerald' : 'red'
       );
       return result;

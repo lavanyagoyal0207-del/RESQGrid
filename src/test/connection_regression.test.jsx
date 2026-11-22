@@ -419,4 +419,305 @@ describe('ResQGrid Connection Lifecycle and Security Regression Tests', () => {
     // Protected incident must appear in the incident feed
     expect(await screen.findByText('INC-DIRECT-1')).toBeInTheDocument();
   });
+
+  it('Scenario 13: Operator inspects incoming reports in verification queue and verifies report with Confirmed status', async () => {
+    vi.spyOn(api, 'checkBackendHealth').mockResolvedValue({
+      ok: true,
+      status: 'healthy',
+      service: 'resqgrid-backend',
+    });
+    const mockReports = [
+      {
+        report_id: 'REP-QUEUE-101',
+        place: 'Kullu Valley',
+        type: 'Flash Flood',
+        severity: 'Critical',
+        original_text: 'Bridge submerged near Kullu market, 5 families trapped.',
+        created_at: '2026-11-22T10:30:00Z',
+        incident_id: 'INC-KULLU-1',
+        verification_status: 'Unverified',
+        grouping_reason: 'Clustered with INC-KULLU-1 based on proximity and flood keywords.',
+      },
+    ];
+    const incidentsSpy = vi.spyOn(api, 'fetchIncidentsData').mockResolvedValue({
+      source: 'flask-api',
+      incidents: [
+        {
+          incident_id: 'INC-KULLU-1',
+          type: 'Flash Flood',
+          place: 'Kullu Valley',
+          severity: 'Critical',
+          status: 'Unverified',
+          report_ids: ['REP-QUEUE-101'],
+          report_count: 1,
+        },
+      ],
+      reports: mockReports,
+      places: [],
+      resources: [],
+      brief: null,
+      riskAssessment: null,
+    });
+    vi.spyOn(api, 'verifyOperatorCredentials').mockResolvedValue({
+      ok: true,
+      data: {
+        operator: 'duty-commander',
+        role: 'commander',
+      },
+    });
+    const verifyReportSpy = vi.spyOn(api, 'verifyReport').mockResolvedValue({
+      ok: true,
+      data: {
+        report: {
+          ...mockReports[0],
+          verification_status: 'Confirmed',
+          verified_by: 'duty-commander',
+          verified_at: '2026-11-22T10:35:00Z',
+        },
+      },
+    });
+
+    render(<App />);
+
+    // Authenticate operator
+    fireEvent.click(screen.getByRole('button', { name: /^Operator Login$/i }));
+    fireEvent.change(screen.getByPlaceholderText('Enter your operator ID'), {
+      target: { value: 'duty-commander' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), {
+      target: { value: 'tactical-pass' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => {
+      expect(incidentsSpy).toHaveBeenCalled();
+    });
+
+    // Navigate to Evidence view
+    fireEvent.click(screen.getByRole('button', { name: /^Evidence/i }));
+
+    // Switch to Incoming Reports tab
+    const queueTabBtn = screen.getByRole('button', { name: /Incoming Reports & Verification/i });
+    fireEvent.click(queueTabBtn);
+
+    // Verify report row appears in table
+    expect(await screen.findByText('REP-QUEUE-101')).toBeInTheDocument();
+    expect(screen.getByText('Kullu Valley')).toBeInTheDocument();
+
+    // Click Review button
+    const reviewBtn = screen.getByRole('button', { name: /^Review$/i });
+    fireEvent.click(reviewBtn);
+
+    // Modal opens: verify inspection fields
+    expect(screen.getByText('Report Review & Human Verification')).toBeInTheDocument();
+    expect(screen.getAllByText('Bridge submerged near Kullu market, 5 families trapped.').length).toBeGreaterThan(0);
+    expect(screen.getByText('Clustered with INC-KULLU-1 based on proximity and flood keywords.')).toBeInTheDocument();
+    expect(screen.getAllByText('INC-KULLU-1').length).toBeGreaterThan(0);
+
+    // Click "Verify Report"
+    const verifyBtn = screen.getByRole('button', { name: /Verify Report/i });
+    fireEvent.click(verifyBtn);
+
+    await waitFor(() => {
+      expect(verifyReportSpy).toHaveBeenCalledWith(
+        'REP-QUEUE-101',
+        'Confirmed',
+        expect.objectContaining({ username: 'duty-commander' }),
+        expect.any(String),
+        ''
+      );
+    });
+
+    // Verify dashboard refreshed
+    expect(incidentsSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('Scenario 14: Operator rejects incoming report with explicit reason, saving audit trail', async () => {
+    vi.spyOn(api, 'checkBackendHealth').mockResolvedValue({
+      ok: true,
+      status: 'healthy',
+      service: 'resqgrid-backend',
+    });
+    const mockReports = [
+      {
+        report_id: 'REP-SPAM-202',
+        place: 'Shimla Ridge',
+        type: 'Fire',
+        severity: 'Low',
+        original_text: 'Test message please ignore, checking network.',
+        created_at: '2026-11-22T11:00:00Z',
+        verification_status: 'Unverified',
+      },
+    ];
+    vi.spyOn(api, 'fetchIncidentsData').mockResolvedValue({
+      source: 'flask-api',
+      incidents: [],
+      reports: mockReports,
+      places: [],
+      resources: [],
+      brief: null,
+      riskAssessment: null,
+    });
+    vi.spyOn(api, 'verifyOperatorCredentials').mockResolvedValue({
+      ok: true,
+      data: {
+        operator: 'duty-commander',
+        role: 'commander',
+      },
+    });
+    const verifyReportSpy = vi.spyOn(api, 'verifyReport').mockResolvedValue({
+      ok: true,
+      data: {
+        report: {
+          ...mockReports[0],
+          verification_status: 'Rejected',
+          rejection_reason: 'Synthetic test / non-emergency submission',
+          verified_by: 'duty-commander',
+          verified_at: '2026-11-22T11:05:00Z',
+        },
+      },
+    });
+
+    render(<App />);
+
+    // Authenticate operator
+    fireEvent.click(screen.getByRole('button', { name: /^Operator Login$/i }));
+    fireEvent.change(screen.getByPlaceholderText('Enter your operator ID'), {
+      target: { value: 'duty-commander' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), {
+      target: { value: 'tactical-pass' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/AUTHORIZED COMMAND SESSION/i)).toBeInTheDocument();
+    });
+
+    // Navigate to Evidence view
+    fireEvent.click(screen.getByRole('button', { name: /^Evidence/i }));
+
+    // Switch to Incoming Reports tab
+    fireEvent.click(screen.getByRole('button', { name: /Incoming Reports & Verification/i }));
+    expect(await screen.findByText('REP-SPAM-202')).toBeInTheDocument();
+
+    // Open review modal
+    fireEvent.click(screen.getByRole('button', { name: /^Review$/i }));
+
+    // Click "Reject Report" button
+    fireEvent.click(screen.getByRole('button', { name: /Reject Report/i }));
+
+    // Rejection reason form should appear
+    expect(screen.getByText(/Reason for Rejection/i)).toBeInTheDocument();
+    const reasonInput = screen.getByPlaceholderText(/State reason for rejecting report/i);
+
+    // Confirm button should be disabled without a reason
+    const confirmRejectBtn = screen.getByRole('button', { name: /Confirm Rejection/i });
+    expect(confirmRejectBtn).toBeDisabled();
+
+    // Type rejection reason
+    fireEvent.change(reasonInput, {
+      target: { value: 'Synthetic test / non-emergency submission' },
+    });
+    expect(confirmRejectBtn).not.toBeDisabled();
+
+    // Submit rejection
+    fireEvent.click(confirmRejectBtn);
+
+    await waitFor(() => {
+      expect(verifyReportSpy).toHaveBeenCalledWith(
+        'REP-SPAM-202',
+        'Rejected',
+        expect.objectContaining({ username: 'duty-commander' }),
+        expect.any(String),
+        'Synthetic test / non-emergency submission'
+      );
+    });
+
+    // Rejection reason and audit log must be visible in modal and toast
+    expect((await screen.findAllByText(/Synthetic test \/ non-emergency submission/i)).length).toBeGreaterThan(0);
+  });
+
+  it('Scenario 15: Operator confirms incident separately from report verification', async () => {
+    vi.spyOn(api, 'checkBackendHealth').mockResolvedValue({
+      ok: true,
+      status: 'healthy',
+      service: 'resqgrid-backend',
+    });
+    vi.spyOn(api, 'fetchIncidentsData').mockResolvedValue({
+      source: 'flask-api',
+      incidents: [
+        {
+          incident_id: 'INC-SEPARATE-1',
+          type: 'Landslide',
+          place: 'Mandi',
+          severity: 'High',
+          status: 'Unverified',
+          report_ids: ['REP-99'],
+          report_count: 1,
+        },
+      ],
+      reports: [
+        {
+          report_id: 'REP-99',
+          place: 'Mandi',
+          type: 'Landslide',
+          severity: 'High',
+          original_text: 'Debris blocking road.',
+          verification_status: 'Unverified',
+          incident_id: 'INC-SEPARATE-1',
+        },
+      ],
+      places: [],
+      resources: [],
+      brief: null,
+      riskAssessment: null,
+    });
+    vi.spyOn(api, 'verifyOperatorCredentials').mockResolvedValue({
+      ok: true,
+      data: {
+        operator: 'duty-commander',
+        role: 'commander',
+      },
+    });
+    const confirmIncidentSpy = vi.spyOn(api, 'confirmIncident').mockResolvedValue({
+      ok: true,
+      incident: {
+        incident_id: 'INC-SEPARATE-1',
+        status: 'Confirmed',
+        confirmed_by: 'duty-commander',
+      },
+    });
+
+    render(<App />);
+
+    // Authenticate operator
+    fireEvent.click(screen.getByRole('button', { name: /^Operator Login$/i }));
+    fireEvent.change(screen.getByPlaceholderText('Enter your operator ID'), {
+      target: { value: 'duty-commander' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), {
+      target: { value: 'tactical-pass' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/AUTHORIZED COMMAND SESSION/i)).toBeInTheDocument();
+    });
+
+    // Select incident in queue
+    expect(await screen.findByText('INC-SEPARATE-1')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('INC-SEPARATE-1'));
+
+    // In IncidentDetail, confirm incident
+    const confirmIncBtn = await screen.findByRole('button', { name: /Confirm Incident/i });
+    fireEvent.click(confirmIncBtn);
+
+    await waitFor(() => {
+      expect(confirmIncidentSpy).toHaveBeenCalledWith(
+        'INC-SEPARATE-1',
+        expect.objectContaining({ username: 'duty-commander' })
+      );
+    });
+  });
 });

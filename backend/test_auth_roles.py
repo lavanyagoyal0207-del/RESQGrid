@@ -536,26 +536,43 @@ class AuthAndRoleTests(unittest.TestCase):
             data = response.get_json()
             self.assertFalse(data["ok"])
 
-    # 20. CORS headers support both Render and Vercel frontend origins
+    # 20. CORS headers support Render and Vercel frontend origins for both auth routes
     def test_cors_origins_supported_for_vercel_and_render(self):
         origins = [
             "https://resqgrid-1.onrender.com",
             "https://resqgrid-amber.vercel.app",
+            "https://resqgrid.vercel.app",
         ]
+        routes = ["/auth/login", "/auth/register"]
         for origin in origins:
-            response = self.client.options(
-                "/auth/login",
-                headers={
-                    "Origin": origin,
-                    "Access-Control-Request-Method": "POST",
-                    "Access-Control-Request-Headers": "Content-Type",
-                },
-            )
-            self.assertEqual(
-                response.headers.get("Access-Control-Allow-Origin"),
-                origin,
-                f"CORS header missing for origin: {origin}"
-            )
+            for route in routes:
+                response = self.client.options(
+                    route,
+                    headers={
+                        "Origin": origin,
+                        "Access-Control-Request-Method": "POST",
+                        "Access-Control-Request-Headers": "Authorization, Content-Type, Idempotency-Key",
+                    },
+                )
+                self.assertEqual(
+                    response.headers.get("Access-Control-Allow-Origin"),
+                    origin,
+                    f"CORS header missing for origin: {origin} on {route}",
+                )
+                methods = response.headers.get("Access-Control-Allow-Methods", "")
+                for expected_method in ["GET", "POST", "PATCH", "OPTIONS"]:
+                    self.assertIn(
+                        expected_method,
+                        methods,
+                        f"Expected {expected_method} in Access-Control-Allow-Methods for {origin} on {route}",
+                    )
+                headers = response.headers.get("Access-Control-Allow-Headers", "")
+                for expected_header in ["Authorization", "Content-Type", "Idempotency-Key"]:
+                    self.assertIn(
+                        expected_header,
+                        headers,
+                        f"Expected {expected_header} in Access-Control-Allow-Headers for {origin} on {route}",
+                    )
 
 
 if __name__ == "__main__":

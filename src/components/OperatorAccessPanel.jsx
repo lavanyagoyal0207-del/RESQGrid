@@ -6,6 +6,7 @@ export default function OperatorAccessPanel({
   role,
   citizenUser,
   defaultTab = 'operator',
+  defaultCitizenMode = 'login',
   onLogin,
   onLogout,
   onCitizenRegister,
@@ -16,7 +17,7 @@ export default function OperatorAccessPanel({
   const [activeTab, setActiveTab] = useState(
     operator ? 'operator' : citizenUser ? 'citizen' : defaultTab
   );
-  const [citizenMode, setCitizenMode] = useState('register');
+  const [citizenMode, setCitizenMode] = useState(defaultCitizenMode || 'login');
 
   // Operator form states
   const [operatorUsername, setOperatorUsername] = useState('');
@@ -59,7 +60,21 @@ export default function OperatorAccessPanel({
     setSuccessMessage('');
 
     try {
-      if (citizenMode === 'register') {
+      if (citizenMode === 'login') {
+        if (!onCitizenLogin) {
+          setErrorMessage('Citizen login is not configured.');
+          return;
+        }
+        const result = await onCitizenLogin({
+          email: citizenEmail.trim(),
+          password: citizenPassword,
+        });
+        if (!result?.ok) {
+          setErrorMessage(result?.error || 'Invalid email or password.');
+          return;
+        }
+        setCitizenPassword('');
+      } else {
         if (!onCitizenRegister) {
           setErrorMessage('Citizen registration is not configured.');
           return;
@@ -74,20 +89,6 @@ export default function OperatorAccessPanel({
           return;
         }
         setSuccessMessage('Citizen account registered successfully! You are now logged in.');
-        setCitizenPassword('');
-      } else {
-        if (!onCitizenLogin) {
-          setErrorMessage('Citizen login is not configured.');
-          return;
-        }
-        const result = await onCitizenLogin({
-          email: citizenEmail.trim(),
-          password: citizenPassword,
-        });
-        if (!result?.ok) {
-          setErrorMessage(result?.error || 'Invalid email or password.');
-          return;
-        }
         setCitizenPassword('');
       }
     } finally {
@@ -182,7 +183,7 @@ export default function OperatorAccessPanel({
                   ? 'border-b-2 border-orange-500 text-orange-400 font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
-              onClick={() => { setActiveTab('citizen'); setErrorMessage(''); setSuccessMessage(''); }}
+              onClick={() => { setActiveTab('citizen'); setCitizenMode('login'); setErrorMessage(''); setSuccessMessage(''); }}
             >
               Citizen portal (Sign up / Login)
             </button>
@@ -265,20 +266,20 @@ export default function OperatorAccessPanel({
                 <button
                   type="button"
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    citizenMode === 'register' ? 'bg-orange-600 text-white shadow-sm' : 'bg-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                  onClick={() => { setCitizenMode('register'); setErrorMessage(''); }}
-                >
-                  Sign Up (New Citizen)
-                </button>
-                <button
-                  type="button"
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                     citizenMode === 'login' ? 'bg-orange-600 text-white shadow-sm' : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                   onClick={() => { setCitizenMode('login'); setErrorMessage(''); }}
                 >
                   Sign In (Existing Citizen)
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    citizenMode === 'register' ? 'bg-orange-600 text-white shadow-sm' : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                  onClick={() => { setCitizenMode('register'); setErrorMessage(''); }}
+                >
+                  Sign Up (New Citizen)
                 </button>
               </div>
 

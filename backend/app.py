@@ -38,6 +38,7 @@ app = Flask(__name__)
 SUPPORTED_FRONTEND_ORIGINS = [
     "https://resqgrid-1.onrender.com",
     "https://resqgrid-amber.vercel.app",
+    "https://resqgrid.vercel.app",
 ]
 default_cors_origins = (
     ",".join(SUPPORTED_FRONTEND_ORIGINS)
@@ -105,6 +106,12 @@ def add_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    origin = request.headers.get("Origin")
+    if origin and origin in parsed_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        if request.method == "OPTIONS":
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Idempotency-Key"
     return response
 
 

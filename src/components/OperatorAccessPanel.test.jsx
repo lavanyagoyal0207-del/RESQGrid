@@ -43,12 +43,52 @@ describe('OperatorAccessPanel', () => {
     expect(onLogout).toHaveBeenCalledOnce();
   });
 
+  it('supports citizen sign-in tab and submission via onCitizenLogin', async () => {
+    const user = userEvent.setup();
+    const onCitizenLogin = vi.fn().mockResolvedValue({
+      ok: true,
+      data: { user: { name: 'Jane Citizen', email: 'jane@example.com', role: 'citizen' } },
+    });
+    const onCitizenRegister = vi.fn();
+
+    render(
+      <OperatorAccessPanel
+        operator={null}
+        onLogin={vi.fn()}
+        onLogout={vi.fn()}
+        onCitizenLogin={onCitizenLogin}
+        onCitizenRegister={onCitizenRegister}
+      />,
+    );
+
+    // Switch to Citizen tab (defaults to Sign In)
+    await user.click(screen.getByRole('tab', { name: /Citizen portal/i }));
+
+    // Verify Sign In button is present and active
+    expect(screen.getByRole('button', { name: /Sign In \(Existing Citizen\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+
+    // Fill sign in credentials
+    await user.type(screen.getByPlaceholderText('you@example.com'), 'jane@example.com');
+    await user.type(screen.getByPlaceholderText('Enter your password'), 'password123');
+
+    // Submit citizen sign in
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(onCitizenLogin).toHaveBeenCalledWith({
+      email: 'jane@example.com',
+      password: 'password123',
+    });
+    expect(onCitizenRegister).not.toHaveBeenCalled();
+  });
+
   it('supports citizen registration tab and submission', async () => {
     const user = userEvent.setup();
     const onCitizenRegister = vi.fn().mockResolvedValue({
       ok: true,
       data: { user: { name: 'Jane Citizen', email: 'jane@example.com', role: 'citizen' } },
     });
+    const onCitizenLogin = vi.fn();
 
     render(
       <OperatorAccessPanel
@@ -56,11 +96,15 @@ describe('OperatorAccessPanel', () => {
         onLogin={vi.fn()}
         onLogout={vi.fn()}
         onCitizenRegister={onCitizenRegister}
+        onCitizenLogin={onCitizenLogin}
       />,
     );
 
     // Switch to Citizen tab
     await user.click(screen.getByRole('tab', { name: /Citizen portal/i }));
+
+    // Switch to Sign Up mode
+    await user.click(screen.getByRole('button', { name: /Sign Up \(New Citizen\)/i }));
 
     // Verify fields
     await user.type(screen.getByPlaceholderText('Your full name'), 'Jane Citizen');
@@ -74,6 +118,7 @@ describe('OperatorAccessPanel', () => {
       email: 'jane@example.com',
       password: 'password123',
     });
+    expect(onCitizenLogin).not.toHaveBeenCalled();
   });
 
   it('displays citizen profile and logout when citizen is signed in', () => {

@@ -542,6 +542,7 @@ class AuthAndRoleTests(unittest.TestCase):
             "https://resqgrid-1.onrender.com",
             "https://resqgrid-amber.vercel.app",
             "https://resqgrid.vercel.app",
+            "https://resqgridd.vercel.app",
         ]
         routes = ["/auth/login", "/auth/register"]
         for origin in origins:

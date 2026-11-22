@@ -39,6 +39,7 @@ SUPPORTED_FRONTEND_ORIGINS = [
     "https://resqgrid-1.onrender.com",
     "https://resqgrid-amber.vercel.app",
     "https://resqgrid.vercel.app",
+    "https://resqgridd.vercel.app",
 ]
 default_cors_origins = (
     ",".join(SUPPORTED_FRONTEND_ORIGINS)
@@ -106,12 +107,15 @@ def add_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    origin = request.headers.get("Origin")
-    if origin and origin in parsed_origins:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        if request.method == "OPTIONS":
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
-            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Idempotency-Key"
+    raw_origin = request.headers.get("Origin")
+    if raw_origin:
+        origin_stripped = raw_origin.strip()
+        allowed_stripped = [o.rstrip("/") for o in parsed_origins]
+        if origin_stripped in parsed_origins or origin_stripped.rstrip("/") in allowed_stripped:
+            response.headers["Access-Control-Allow-Origin"] = raw_origin
+            if request.method == "OPTIONS":
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
+                response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Idempotency-Key"
     return response
 
 

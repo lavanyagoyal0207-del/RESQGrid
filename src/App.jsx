@@ -886,6 +886,7 @@ export default function App() {
       role={operatorCredentials?.role}
       citizenUser={citizenUser}
       defaultTab={operatorCredentials ? 'operator' : 'citizen'}
+      defaultCitizenMode="login"
       onLogin={handleOperatorLogin}
       onLogout={handleOperatorLogout}
       onCitizenRegister={handleCitizenRegister}
